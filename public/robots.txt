@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /signup
+Disallow: /admin
+Disallow: /api
+Disallow: /conversations
+Disallow: /patients
+Disallow: /appointments
+Disallow: /analytics
+Disallow: /settings
+
+Sitemap: https://drdent.ai/sitemap.xml
