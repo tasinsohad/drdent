@@ -35,11 +35,14 @@ export const useAppStore = create<AppState>()(
         set({ isLoading: true, error: null })
         try {
           if (!isSupabaseConfigured()) {
-            set({ isLoading: false, error: 'Supabase not configured' })
-            return { success: false, error: 'Supabase not configured' }
+            const msg = 'Supabase not configured'
+            set({ isLoading: false, error: msg })
+            return { success: false, error: msg }
           }
           
+          console.log('signIn called with:', email)
           const { data, error } = await signIn(email, password)
+          console.log('signIn result:', { data, error })
           
           if (error) {
             const errorMsg = error.message || 'Login failed'

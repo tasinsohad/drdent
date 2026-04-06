@@ -1,19 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-// Handle missing env vars gracefully
-let supabase: ReturnType<typeof createClient> | null = null
-
-if (supabaseUrl && supabaseKey) {
-  supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      persistSession: false,
-    },
-  })
-}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -31,47 +16,8 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute = pathname === '/'
   const isAdminRoute = pathname.startsWith('/admin')
 
-  if (isPublicRoute) {
+  if (isPublicRoute || isAuthRoute || pathname.startsWith('/auth/')) {
     return NextResponse.next()
-  }
-
-  // If Supabase is not configured, only allow auth routes
-  if (!supabase) {
-    if (isAuthRoute || isAdminRoute) {
-      return NextResponse.next()
-    }
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  const tokenCookie = request.cookies.get('sb-access-token')
-  const token = tokenCookie?.value
-
-  if (!token) {
-    if (isAdminRoute) {
-      return NextResponse.redirect(new URL('/admin/login', request.url))
-    }
-    if (!isAuthRoute) {
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
-    return NextResponse.next()
-  }
-
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(token)
-
-  if (error || !user) {
-    const response = NextResponse.redirect(
-      isAdminRoute ? new URL('/admin/login', request.url) : new URL('/login', request.url)
-    )
-    response.cookies.delete('sb-access-token')
-    response.cookies.delete('sb-refresh-token')
-    return response
-  }
-
-  if (isAuthRoute) {
-    return NextResponse.redirect(new URL('/conversations', request.url))
   }
 
   return NextResponse.next()
