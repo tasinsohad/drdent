@@ -27,9 +27,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const tokenCookie = request.cookies.get('sb-access-token')
-  const token = tokenCookie?.value
-
   const isAuthRoute = pathname === '/login' || pathname === '/signup' || pathname === '/admin/login'
   const isPublicRoute = pathname === '/'
   const isAdminRoute = pathname.startsWith('/admin')
@@ -37,6 +34,17 @@ export async function middleware(request: NextRequest) {
   if (isPublicRoute) {
     return NextResponse.next()
   }
+
+  // If Supabase is not configured, only allow auth routes
+  if (!supabase) {
+    if (isAuthRoute || isAdminRoute) {
+      return NextResponse.next()
+    }
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  const tokenCookie = request.cookies.get('sb-access-token')
+  const token = tokenCookie?.value
 
   if (!token) {
     if (isAdminRoute) {
@@ -46,11 +54,6 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
     return NextResponse.next()
-  }
-
-  // If Supabase is not configured, redirect to login
-  if (!supabase) {
-    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   const {
