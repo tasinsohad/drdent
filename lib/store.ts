@@ -34,34 +34,29 @@ export const useAppStore = create<AppState>()(
       login: async (email, password) => {
         set({ isLoading: true, error: null })
         try {
+          if (!isSupabaseConfigured()) {
+            set({ isLoading: false, error: 'Supabase not configured' })
+            return { success: false, error: 'Supabase not configured' }
+          }
+          
           const { data, error } = await signIn(email, password)
+          
           if (error) {
-            set({ isLoading: false, error: error.message })
-            return { success: false, error: error.message }
+            const errorMsg = error.message || 'Login failed'
+            set({ isLoading: false, error: errorMsg })
+            return { success: false, error: errorMsg }
           }
           
-          if (!data.session) {
-            set({ isLoading: false, error: 'No session created' })
-            return { success: false, error: 'Login failed - no session' }
-          }
-          
-          const session = data.session
-          const response = await fetch('/api/auth/set-cookies', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              accessToken: session.access_token,
-              refreshToken: session.refresh_token,
-            }),
-          })
-          if (!response.ok) {
-            console.error('Failed to set auth cookies')
+          if (!data.user) {
+            const errorMsg = 'Invalid credentials'
+            set({ isLoading: false, error: errorMsg })
+            return { success: false, error: errorMsg }
           }
           
           set({ user: data.user, isLoading: false, error: null })
           return { success: true }
         } catch (err: any) {
-          const errorMsg = err.message || 'Failed to login'
+          const errorMsg = err.message || 'Network error - please try again'
           console.error('Login error:', err)
           set({ isLoading: false, error: errorMsg })
           return { success: false, error: errorMsg }
@@ -71,25 +66,15 @@ export const useAppStore = create<AppState>()(
       signup: async (email, password) => {
         set({ isLoading: true, error: null })
         try {
+          if (!isSupabaseConfigured()) {
+            set({ isLoading: false, error: 'Supabase not configured' })
+            return { success: false, error: 'Supabase not configured' }
+          }
+          
           const { data, error } = await signUp(email, password)
           if (error) {
             set({ isLoading: false, error: error.message })
             return { success: false, error: error.message }
-          }
-          
-          const session = data.session
-          if (session) {
-            const response = await fetch('/api/auth/set-cookies', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                accessToken: session.access_token,
-                refreshToken: session.refresh_token,
-              }),
-            })
-            if (!response.ok) {
-              console.error('Failed to set auth cookies')
-            }
           }
           
           set({ user: data.user, isLoading: false, error: null })
