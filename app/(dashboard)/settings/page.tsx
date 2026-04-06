@@ -404,6 +404,7 @@ export default function SettingsPage() {
   const [phoneNumberId, setPhoneNumberId] = useState("")
   const [whatsappToken, setWhatsappToken] = useState("")
   const [whatsappBusinessId, setWhatsappBusinessId] = useState("")
+  const [whatsappVerifyToken, setWhatsappVerifyToken] = useState("")
   const [showWhatsappGuide, setShowWhatsappGuide] = useState(false)
 
   const [saving, setSaving] = useState<string | null>(null)
@@ -567,6 +568,33 @@ export default function SettingsPage() {
       console.error('Failed to save widget config:', err)
     }
     setTimeout(() => setSaving(null), 1000); // simulate delay for feedback
+  }
+
+  const handleSaveWhatsAppConfig = async () => {
+    setSaving('whatsapp')
+    try {
+      const { data: wsData } = await supabase.from('workspaces').select('id').limit(1).single();
+      let workspaceId = wsData?.id;
+      if (!workspaceId) {
+        console.warn("No workspace found.");
+        setSaving(null);
+        return;
+      }
+
+      const { error } = await supabase.from('whatsapp_config').upsert({
+        workspace_id: workspaceId,
+        phone_number_id: phoneNumberId,
+        whatsapp_business_id: whatsappBusinessId,
+        access_token_encrypted: whatsappToken,
+        webhook_verify_token: whatsappVerifyToken,
+        enabled: whatsappEnabled
+      }, { onConflict: 'workspace_id' })
+
+      if (error) throw error
+    } catch (err: any) {
+      console.error('Failed to save WhatsApp config:', err)
+    }
+    setTimeout(() => setSaving(null), 1000);
   }
 
   const copyEmbedCode = () => {
@@ -990,6 +1018,38 @@ export default function SettingsPage() {
 
               {whatsappEnabled && (
                 <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="font-medium text-sm text-blue-800 dark:text-blue-200 mb-2">Webhook URL</p>
+                    <p className="text-xs text-muted-foreground mb-2">Add this URL in your Meta Developer Console → WhatsApp → Configuration → Webhook:</p>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhook/whatsapp`}
+                        className="text-xs font-mono"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigator.clipboard.writeText(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhook/whatsapp`)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <p className="font-medium text-sm text-amber-800 dark:text-amber-200 mb-2">Verify Token</p>
+                    <p className="text-xs text-muted-foreground mb-2">Set this as your verify token in Meta Developer Console:</p>
+                    <Input
+                      type="password"
+                      placeholder="Enter a secure token"
+                      value={whatsappVerifyToken}
+                      onChange={(e) => setWhatsappVerifyToken(e.target.value)}
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">Then add this to Vercel environment variables as WHATSAPP_VERIFY_TOKEN</p>
+                  </div>
+
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Phone Number ID</Label>
@@ -1004,7 +1064,9 @@ export default function SettingsPage() {
                     <Label>Access Token</Label>
                     <Input type="password" value={whatsappToken} onChange={(e) => setWhatsappToken(e.target.value)} />
                   </div>
-                  <Button className="bg-blue-600 hover:bg-blue-700">Save</Button>
+                  <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSaveWhatsAppConfig}>
+                    {saving === 'whatsapp' ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : "Save WhatsApp Configuration"}
+                  </Button>
                 </div>
               )}
 
