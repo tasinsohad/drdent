@@ -497,10 +497,14 @@ export default function SettingsPage() {
       if (result.success) {
         setMigrationResult({ success: true, message: result.message || 'Database setup completed!' })
       } else {
-        throw new Error(result.error || 'API failed')
+        setMigrationResult({ 
+          success: false, 
+          message: result.message || result.error || 'Database not set up',
+          sql: result.sql 
+        })
       }
-    } catch {
-      setMigrationResult({ success: false, message: "API call failed. Please try again or run SQL manually." })
+    } catch (err: any) {
+      setMigrationResult({ success: false, message: "API call failed. " + (err.message || 'Please run SQL manually') })
     }
 
     setMigrating(false)
@@ -689,7 +693,7 @@ export default function SettingsPage() {
               <Button
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleRunMigration}
-                disabled={!supabaseConnected || migrating}
+                disabled={migrating}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${migrating ? 'animate-spin' : ''}`} />
                 {migrating ? "Running Migration..." : "Run Database Migration"}
