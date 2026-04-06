@@ -40,26 +40,31 @@ export const useAppStore = create<AppState>()(
             return { success: false, error: error.message }
           }
           
+          if (!data.session) {
+            set({ isLoading: false, error: 'No session created' })
+            return { success: false, error: 'Login failed - no session' }
+          }
+          
           const session = data.session
-          if (session) {
-            const response = await fetch('/api/auth/set-cookies', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                accessToken: session.access_token,
-                refreshToken: session.refresh_token,
-              }),
-            })
-            if (!response.ok) {
-              console.error('Failed to set auth cookies')
-            }
+          const response = await fetch('/api/auth/set-cookies', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              accessToken: session.access_token,
+              refreshToken: session.refresh_token,
+            }),
+          })
+          if (!response.ok) {
+            console.error('Failed to set auth cookies')
           }
           
           set({ user: data.user, isLoading: false, error: null })
           return { success: true }
         } catch (err: any) {
-          set({ isLoading: false, error: err.message })
-          return { success: false, error: err.message }
+          const errorMsg = err.message || 'Failed to login'
+          console.error('Login error:', err)
+          set({ isLoading: false, error: errorMsg })
+          return { success: false, error: errorMsg }
         }
       },
 
