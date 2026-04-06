@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS appointments (
 
 CREATE TABLE IF NOT EXISTS ai_configs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    workspace_id UUID UNIQUE,
     provider TEXT DEFAULT 'openai',
     base_url TEXT,
     api_key_encrypted TEXT,
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS ai_configs (
 
 CREATE TABLE IF NOT EXISTS widget_config (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    workspace_id UUID UNIQUE,
     primary_color TEXT DEFAULT '#0ea5e9',
     greeting_text TEXT,
     position TEXT DEFAULT 'bottom-right',
@@ -172,6 +172,12 @@ CREATE TABLE IF NOT EXISTS followup_configs (
 INSERT INTO workspaces (id, name, slug)
 VALUES (uuid_generate_v4(), 'Default Dental Practice', 'default-practice')
 ON CONFLICT (slug) DO NOTHING;
+
+-- Add unique constraint to ai_configs if not exists
+ALTER TABLE ai_configs ADD CONSTRAINT ai_configs_workspace_id_key UNIQUE (workspace_id);
+
+-- Add unique constraint to widget_config if not exists  
+ALTER TABLE widget_config ADD CONSTRAINT widget_config_workspace_id_key UNIQUE (workspace_id);
 
 -- Insert default configurations for the workspace
 INSERT INTO ai_configs (workspace_id)
