@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  {
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+// Handle missing env vars gracefully
+let supabase: ReturnType<typeof createClient> | null = null
+
+if (supabaseUrl && supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
       persistSession: false,
     },
-  }
-)
+  })
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -42,6 +46,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
     return NextResponse.next()
+  }
+
+  // If Supabase is not configured, redirect to login
+  if (!supabase) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   const {
