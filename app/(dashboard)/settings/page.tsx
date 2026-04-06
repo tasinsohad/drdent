@@ -376,7 +376,7 @@ export default function SettingsPage() {
 
   const [checking, setChecking] = useState(false)
   const [migrating, setMigrating] = useState(false)
-  const [migrationResult, setMigrationResult] = useState<{success: boolean; message: string} | null>(null)
+  const [migrationResult, setMigrationResult] = useState<{success: boolean; message: string; sql?: string} | null>(null)
 
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
@@ -700,6 +700,22 @@ export default function SettingsPage() {
                   <p className={`text-sm ${migrationResult.success ? 'text-green-800' : 'text-amber-800'}`}>
                     {migrationResult.message}
                   </p>
+                  {migrationResult.sql && (
+                    <div className="mt-3">
+                      <p className="text-xs font-medium text-amber-800 mb-2">Copy and run this SQL in Supabase SQL Editor:</p>
+                      <div className="bg-slate-900 text-slate-100 rounded-lg p-3 text-xs font-mono overflow-x-auto max-h-64">
+                        <pre>{migrationResult.sql}</pre>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => navigator.clipboard.writeText(migrationResult.sql || '')}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />Copy SQL
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
