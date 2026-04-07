@@ -104,6 +104,10 @@ export function OnboardingWizard() {
               <Button className="w-full h-11" onClick={() => setStep(2)}>
                 Continue to AI Setup <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
+              
+              <Button variant="outline" className="w-full" onClick={() => setOpen(false)}>
+                Skip for now
+              </Button>
             </div>
           )}
 
