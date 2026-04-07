@@ -84,7 +84,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { workspaceId, datetime, duration, dentistId, treatment, patientId } = await request.json()
+    const { workspaceId, datetime, duration, dentistId, treatment, patientId, notes } = await request.json()
+
+    console.log('[POST /api/appointments/conflicts] Creating appointment:', { workspaceId, datetime, treatment })
 
     if (!workspaceId || !datetime) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -123,26 +125,30 @@ export async function POST(request: Request) {
       .from('appointments')
       .insert({
         workspace_id: workspaceId,
-        patient_id: patientId,
-        dentist_id: dentistId,
+        patient_id: patientId || null,
+        dentist_id: dentistId || null,
         datetime: datetime,
         duration: duration || 30,
-        treatment: treatment,
+        treatment: treatment || null,
+        notes: notes || null,
         status: 'pending'
       })
       .select()
       .single()
 
     if (error) {
+      console.error('[POST /api/appointments/conflicts] Insert error:', error)
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
+
+    console.log('[POST /api/appointments/conflicts] Created:', appointment)
 
     return NextResponse.json({
       success: true,
       appointment
     })
   } catch (error: any) {
-    console.error('Create appointment error:', error)
+    console.error('[POST /api/appointments/conflicts] Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
