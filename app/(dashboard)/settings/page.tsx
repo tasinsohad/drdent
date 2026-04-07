@@ -767,6 +767,42 @@ CREATE TRIGGER on_auth_user_created
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- =====================================================
+-- TEMPORARY PERMISSIVE POLICIES (remove after setup)
+-- =====================================================
+
+-- Allow anyone to create workspace (for setup)
+CREATE POLICY "Allow insert on workspaces" ON workspaces
+    FOR INSERT WITH CHECK (true);
+
+-- Allow anyone to create users (for setup)
+CREATE POLICY "Allow insert on users" ON users
+    FOR INSERT WITH CHECK (true);
+
+-- Allow anyone to create ai_configs (for setup)
+CREATE POLICY "Allow insert on ai_configs" ON ai_configs
+    FOR INSERT WITH CHECK (true);
+
+-- Allow anyone to create widget_config (for setup)
+CREATE POLICY "Allow insert on widget_config" ON widget_config
+    FOR INSERT WITH CHECK (true);
+
+-- Allow anyone to create patients (for setup)
+CREATE POLICY "Allow insert on patients" ON patients
+    FOR INSERT WITH CHECK (true);
+
+-- Allow anyone to create conversations (for setup)
+CREATE POLICY "Allow insert on conversations" ON conversations
+    FOR INSERT WITH CHECK (true);
+
+-- Allow anyone to create messages (for setup)
+CREATE POLICY "Allow insert on messages" ON messages
+    FOR INSERT WITH CHECK (true);
+
+-- Allow anyone to create appointments (for setup)
+CREATE POLICY "Allow insert on appointments" ON appointments
+    FOR INSERT WITH CHECK (true);
+
+-- =====================================================
 -- STORAGE BUCKETS
 -- =====================================================
 
