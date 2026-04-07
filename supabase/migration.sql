@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Workspaces (one per dental practice)
-CREATE TABLE workspaces (
+CREATE TABLE IF NOT EXISTS workspaces (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     slug TEXT UNIQUE NOT NULL,
@@ -15,16 +15,23 @@ CREATE TABLE workspaces (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Users (linked to Supabase Auth)
-CREATE TABLE users (
+-- Users (linked to Supabase Auth and Workspaces)
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
     role TEXT CHECK (role IN ('admin', 'staff')) DEFAULT 'staff',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Global User Roles (for app-wide admins/developers)
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'user',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- AI Configuration per workspace
-CREATE TABLE ai_configs (
+CREATE TABLE IF NOT EXISTS ai_configs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE,
     provider TEXT CHECK (provider IN ('google', 'openai', 'openrouter', 'custom')) DEFAULT 'openai',
@@ -37,12 +44,13 @@ CREATE TABLE ai_configs (
     business_hours_end TEXT DEFAULT '18:00',
     business_hours_timezone TEXT DEFAULT 'UTC',
     off_hours_message TEXT DEFAULT 'We are currently closed. Our office is open Monday-Friday 9AM-6PM.',
+    supported_languages TEXT[] DEFAULT ARRAY['en'],
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Supabase Connection Config (stored per workspace)
-CREATE TABLE supabase_config (
+-- Supabase Connection Config (stored per workspace - for external syncs)
+CREATE TABLE IF NOT EXISTS supabase_config (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE,
     project_url TEXT NOT NULL,
@@ -54,7 +62,7 @@ CREATE TABLE supabase_config (
 );
 
 -- Patients
-CREATE TABLE patients (
+CREATE TABLE IF NOT EXISTS patients (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
@@ -68,7 +76,7 @@ CREATE TABLE patients (
 );
 
 -- Conversations
-CREATE TABLE conversations (
+CREATE TABLE IF NOT EXISTS conversations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
     patient_id UUID REFERENCES patients(id) ON DELETE SET NULL,
@@ -78,12 +86,13 @@ CREATE TABLE conversations (
     last_message TEXT,
     last_message_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     ai_paused BOOLEAN DEFAULT FALSE,
+    followup_disabled BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Messages
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
     role TEXT CHECK (role IN ('user', 'assistant', 'system')) NOT NULL,
@@ -94,7 +103,7 @@ CREATE TABLE messages (
 );
 
 -- Appointments
-CREATE TABLE appointments (
+CREATE TABLE IF NOT EXISTS appointments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
     patient_id UUID REFERENCES patients(id) ON DELETE SET NULL,
@@ -109,7 +118,7 @@ CREATE TABLE appointments (
 );
 
 -- Calendar Tokens (Google Calendar OAuth)
-CREATE TABLE calendar_tokens (
+CREATE TABLE IF NOT EXISTS calendar_tokens (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE,
     access_token_encrypted TEXT,
@@ -121,7 +130,7 @@ CREATE TABLE calendar_tokens (
 );
 
 -- Widget Configuration
-CREATE TABLE widget_config (
+CREATE TABLE IF NOT EXISTS widget_config (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE,
     primary_color TEXT DEFAULT '#0ea5e9',
@@ -135,7 +144,7 @@ CREATE TABLE widget_config (
 );
 
 -- WhatsApp Configuration
-CREATE TABLE whatsapp_config (
+CREATE TABLE IF NOT EXISTS whatsapp_config (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE,
     phone_number_id TEXT,
@@ -147,8 +156,36 @@ CREATE TABLE whatsapp_config (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Follow-up Configuration
+CREATE TABLE IF NOT EXISTS followup_configs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE,
+    enabled BOOLEAN DEFAULT TRUE,
+    reminder_24h BOOLEAN DEFAULT TRUE,
+    reminder_1h BOOLEAN DEFAULT TRUE,
+    reminder_30m BOOLEAN DEFAULT FALSE,
+    post_visit_followup BOOLEAN DEFAULT TRUE,
+    custom_message_24h TEXT,
+    custom_message_1h TEXT,
+    custom_message_30m TEXT,
+    custom_post_visit TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Audit Logs (replacing activity_logs)
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    user_email TEXT,
+    action TEXT NOT NULL,
+    details JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Analytics (aggregated stats)
-CREATE TABLE analytics (
+CREATE TABLE IF NOT EXISTS analytics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
     date DATE NOT NULL,
@@ -163,17 +200,19 @@ CREATE TABLE analytics (
 );
 
 -- Create indexes for performance
-CREATE INDEX idx_patients_workspace ON patients(workspace_id);
-CREATE INDEX idx_conversations_workspace ON conversations(workspace_id);
-CREATE INDEX idx_conversations_patient ON conversations(patient_id);
-CREATE INDEX idx_messages_conversation ON messages(conversation_id);
-CREATE INDEX idx_appointments_workspace ON appointments(workspace_id);
-CREATE INDEX idx_appointments_datetime ON appointments(datetime);
-CREATE INDEX idx_analytics_workspace_date ON analytics(workspace_id, date);
+CREATE INDEX IF NOT EXISTS idx_patients_workspace ON patients(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_workspace ON conversations(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_patient ON conversations(patient_id);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_workspace ON appointments(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_datetime ON appointments(datetime);
+CREATE INDEX IF NOT EXISTS idx_analytics_workspace_date ON analytics(workspace_id, date);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_workspace ON audit_logs(workspace_id);
 
 -- Row Level Security Policies
 ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE supabase_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE patients ENABLE ROW LEVEL SECURITY;
@@ -183,163 +222,82 @@ ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE calendar_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE widget_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE whatsapp_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE followup_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE analytics ENABLE ROW LEVEL SECURITY;
 
--- Workspace policies (users can only see their own workspace)
+-- Policies
 CREATE POLICY "Users can view own workspace" ON workspaces
     FOR SELECT USING (id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
 
 CREATE POLICY "Admins can manage workspace" ON workspaces
-    FOR ALL USING (
-        id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin')
-    );
+    FOR ALL USING (id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
--- Patients policies
 CREATE POLICY "Users can view patients in workspace" ON patients
     FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
 
 CREATE POLICY "Staff can manage patients" ON patients
     FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
 
--- Conversations policies
 CREATE POLICY "Users can view conversations in workspace" ON conversations
     FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
 
 CREATE POLICY "Staff can manage conversations" ON conversations
     FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
 
--- Messages policies
 CREATE POLICY "Users can view messages in their workspace" ON messages
-    FOR SELECT USING (
-        conversation_id IN (
-            SELECT id FROM conversations 
-            WHERE workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid())
-        )
-    );
+    FOR SELECT USING (conversation_id IN (SELECT id FROM conversations WHERE workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid())));
 
 CREATE POLICY "Staff can manage messages" ON messages
-    FOR ALL USING (
-        conversation_id IN (
-            SELECT id FROM conversations 
-            WHERE workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid())
-        )
-    );
+    FOR ALL USING (conversation_id IN (SELECT id FROM conversations WHERE workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid())));
 
--- Appointments policies
 CREATE POLICY "Users can view appointments in workspace" ON appointments
     FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
 
 CREATE POLICY "Staff can manage appointments" ON appointments
     FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
 
--- Analytics policies
-CREATE POLICY "Users can view analytics in workspace" ON analytics
+CREATE POLICY "Users can view audit logs" ON audit_logs
     FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
 
-CREATE POLICY "Admins can manage analytics" ON analytics
-    FOR ALL USING (
-        workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin')
-    );
+CREATE POLICY "Users can view analytics" ON analytics
+    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
 
 -- Config tables (read-only for staff, full for admins)
-CREATE POLICY "Users can view ai config" ON ai_configs
-    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "Users can view ai config" ON ai_configs FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "Admins can manage ai config" ON ai_configs FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
-CREATE POLICY "Admins can manage ai config" ON ai_configs
-    FOR ALL USING (
-        workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin')
-    );
+CREATE POLICY "Users can view widget config" ON widget_config FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "Admins can manage widget config" ON widget_config FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
-CREATE POLICY "Users can view supabase config" ON supabase_config
-    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "Users can view whatsapp config" ON whatsapp_config FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "Admins can manage whatsapp config" ON whatsapp_config FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
-CREATE POLICY "Admins can manage supabase config" ON supabase_config
-    FOR ALL USING (
-        workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin')
-    );
+CREATE POLICY "Users can view followup config" ON followup_configs FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "Admins can manage followup config" ON followup_configs FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin'));
 
-CREATE POLICY "Users can view calendar config" ON calendar_tokens
-    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-
-CREATE POLICY "Admins can manage calendar config" ON calendar_tokens
-    FOR ALL USING (
-        workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin')
-    );
-
-CREATE POLICY "Users can view widget config" ON widget_config
-    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-
-CREATE POLICY "Admins can manage widget config" ON widget_config
-    FOR ALL USING (
-        workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin')
-    );
-
-CREATE POLICY "Users can view whatsapp config" ON whatsapp_config
-    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-
-CREATE POLICY "Admins can manage whatsapp config" ON whatsapp_config
-    FOR ALL USING (
-        workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin')
-    );
-
--- Storage bucket for widget assets
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('widget-assets', 'widget-assets', true)
-ON CONFLICT (id) DO NOTHING;
-
--- Storage policies
-CREATE POLICY "Users can view widget assets" ON storage.objects
-    FOR SELECT USING (bucket_id = 'widget-assets');
-
-CREATE POLICY "Admins can manage widget assets" ON storage.objects
-    FOR ALL USING (bucket_id = 'widget-assets');
-
--- Function to create workspace on user signup
+-- Functions & Triggers
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
     workspace_id UUID;
 BEGIN
-    -- Create workspace
     INSERT INTO workspaces (name, slug)
-    VALUES (
-        COALESCE(NEW.raw_user_meta_data->>'practice_name', 'My Dental Practice'),
-        LOWER(COALESCE(NEW.raw_user_meta_data->>'practice_name', 'dental')) || '-' || LEFT(NEW.id::TEXT, 8)
-    )
+    VALUES (COALESCE(NEW.raw_user_meta_data->>'practice_name', 'My Dental Practice'), LOWER(COALESCE(NEW.raw_user_meta_data->>'practice_name', 'dental')) || '-' || LEFT(NEW.id::TEXT, 8))
     RETURNING id INTO workspace_id;
 
-    -- Add user to workspace
     INSERT INTO users (id, workspace_id, role)
     VALUES (NEW.id, workspace_id, 'admin');
 
-    -- Create default AI config
-    INSERT INTO ai_configs (workspace_id)
-    VALUES (workspace_id);
-
-    -- Create default widget config
-    INSERT INTO widget_config (workspace_id)
-    VALUES (workspace_id);
+    INSERT INTO ai_configs (workspace_id) VALUES (workspace_id);
+    INSERT INTO widget_config (workspace_id) VALUES (workspace_id);
+    INSERT INTO followup_configs (workspace_id) VALUES (workspace_id);
 
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger for new user signup
-CREATE OR REPLACE FUNCTION auth.auth_user_created()
-RETURNS TRIGGER AS $$
-BEGIN
-    PERFORM public.handle_new_user();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Note: This trigger should be set up in Supabase dashboard
--- Go to Database -> Triggers -> New trigger
--- Event: INSERT on auth.users
--- Function: auth.auth_user_created()
-
--- For now, we'll create the trigger directly
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
-    FOR EACH ROW EXECUTE FUNCTION auth.auth_user_created();
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
