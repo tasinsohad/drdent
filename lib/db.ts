@@ -7,16 +7,8 @@ async function getWorkspaceId() {
     .limit(1)
     .single()
   
-  if (error) {
-    console.error('[getWorkspaceId] Error:', error.message)
-    return null
-  }
-  if (!data) {
-    console.error('[getWorkspaceId] No workspace found')
-    return null
-  }
-  console.log('[getWorkspaceId] Found workspace:', data.id)
-  return data.id
+  if (error) return null
+  return data?.id
 }
 
 async function ensureWorkspace() {
@@ -184,12 +176,7 @@ export async function getMessages(conversationId: string) {
 
 export async function getAppointments() {
   const workspaceId = await getWorkspaceId()
-  if (!workspaceId) {
-    console.error('[getAppointments] No workspace ID, returning empty')
-    return []
-  }
-  
-  console.log('[getAppointments] Fetching for workspace:', workspaceId)
+  if (!workspaceId) return []
   
   const { data, error } = await supabase
     .from('appointments')
@@ -197,11 +184,7 @@ export async function getAppointments() {
     .eq('workspace_id', workspaceId)
     .order('datetime', { ascending: true })
   
-  if (error) {
-    console.error('[getAppointments] Error:', error.message)
-    return []
-  }
-  console.log('[getAppointments] Found:', data?.length || 0, 'appointments')
+  if (error) return []
   return data || []
 }
 

@@ -679,54 +679,20 @@ CREATE INDEX IF NOT EXISTS idx_payments_patient ON payments(patient_id);
 -- ROW LEVEL SECURITY
 -- =====================================================
 
-ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ai_configs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE supabase_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE patients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE calendar_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE widget_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE whatsapp_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE analytics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workspaces DISABLE ROW LEVEL SECURITY;
+ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_configs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE supabase_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE patients DISABLE ROW LEVEL SECURITY;
+ALTER TABLE conversations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE appointments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_tokens DISABLE ROW LEVEL SECURITY;
+ALTER TABLE widget_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE whatsapp_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE analytics DISABLE ROW LEVEL SECURITY;
 
--- RLS Policies
-CREATE POLICY "Users can view own workspace" ON workspaces
-    FOR SELECT USING (id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-CREATE POLICY "Admins can manage workspace" ON workspaces
-    FOR ALL USING (id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin'));
-
-CREATE POLICY "Users can view patients in workspace" ON patients
-    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-CREATE POLICY "Staff can manage patients" ON patients
-    FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-
-CREATE POLICY "Users can view conversations in workspace" ON conversations
-    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-CREATE POLICY "Staff can manage conversations" ON conversations
-    FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-
-CREATE POLICY "Users can view messages in their workspace" ON messages
-    FOR SELECT USING (conversation_id IN (SELECT id FROM conversations WHERE workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid())));
-CREATE POLICY "Staff can manage messages" ON messages
-    FOR ALL USING (conversation_id IN (SELECT id FROM conversations WHERE workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid())));
-
-CREATE POLICY "Users can view appointments in workspace" ON appointments
-    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-CREATE POLICY "Staff can manage appointments" ON appointments
-    FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-
-CREATE POLICY "Users can view analytics in workspace" ON analytics
-    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-
-CREATE POLICY "Users can view ai config" ON ai_configs
-    FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
-CREATE POLICY "Admins can manage ai config" ON ai_configs
-    FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin'));
-
-CREATE POLICY "Users can view widget config" ON widget_config
+-- RLS is disabled, so no policies needed
     FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid()));
 CREATE POLICY "Admins can manage widget config" ON widget_config
     FOR ALL USING (workspace_id IN (SELECT workspace_id FROM users WHERE id = auth.uid() AND role = 'admin'));
@@ -831,7 +797,23 @@ ON CONFLICT (id) DO NOTHING;
 CREATE POLICY "Users can view widget assets" ON storage.objects
     FOR SELECT USING (bucket_id = 'widget-assets');
 CREATE POLICY "Admins can manage widget assets" ON storage.objects
-    FOR ALL USING (bucket_id = 'widget-assets');`
+    FOR ALL USING (bucket_id = 'widget-assets');
+
+-- =====================================================
+-- CREATE DEFAULT WORKSPACE (if none exists)
+-- =====================================================
+
+INSERT INTO workspaces (name, slug)
+SELECT 'My Dental Practice', 'default-practice'
+WHERE NOT EXISTS (SELECT 1 FROM workspaces LIMIT 1);
+
+INSERT INTO ai_configs (workspace_id) 
+SELECT id FROM workspaces LIMIT 1
+ON CONFLICT (workspace_id) DO NOTHING;
+
+INSERT INTO widget_config (workspace_id) 
+SELECT id FROM workspaces LIMIT 1
+ON CONFLICT (workspace_id) DO NOTHING;`
 
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)

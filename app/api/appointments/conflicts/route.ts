@@ -86,8 +86,6 @@ export async function POST(request: Request) {
   try {
     const { workspaceId, datetime, duration, dentistId, treatment, patientId, notes } = await request.json()
 
-    console.log('[POST /api/appointments/conflicts] Creating appointment:', { workspaceId, datetime, treatment })
-
     if (!workspaceId || !datetime) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
@@ -137,18 +135,14 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      console.error('[POST /api/appointments/conflicts] Insert error:', error)
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
-
-    console.log('[POST /api/appointments/conflicts] Created:', appointment)
 
     return NextResponse.json({
       success: true,
       appointment
     })
   } catch (error: any) {
-    console.error('[POST /api/appointments/conflicts] Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
