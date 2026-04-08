@@ -39,7 +39,7 @@ import {
 } from "lucide-react"
 import { useAppStore } from "@/lib/store"
 import { supabase, testSupabaseConnection } from "@/lib/supabase-client"
-import { getFollowupConfig, saveFollowupConfig, getAuditLogs } from "@/lib/db"
+import { getFollowupConfig, saveFollowupConfig, getAuditLogs, getAIConfig, getWidgetConfig, getWhatsAppConfig } from "@/lib/db"
 
 const docSections = [
   {
@@ -374,6 +374,8 @@ CREATE TABLE IF NOT EXISTS widget_config (
 export default function SettingsPage() {
   const { supabaseConnected, supabaseError, checkSupabaseConnection } = useAppStore()
 
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null)
+  const [apiKeyValidating, setApiKeyValidating] = useState(false)
   const [checking, setChecking] = useState(false)
   const [migrating, setMigrating] = useState(false)
   const [migrationResult, setMigrationResult] = useState<{success: boolean; message: string; sql?: string} | null>(null)
@@ -1020,8 +1022,66 @@ ON CONFLICT (workspace_id) DO NOTHING;`
     loadLogs()
   }, [checkSupabaseConnection])
 
+  // Load existing config from database
   useEffect(() => {
-    if (!apiKey || aiProvider !== "openai") {
+    const loadConfigs = async () => {
+      try {
+        // Load AI config
+        const aiConfig = await getAIConfig()
+        if (aiConfig) {
+          setAiProvider(aiConfig.provider || 'openai')
+          setAiModel(aiConfig.model || 'gpt-4o')
+          setApiKey(aiConfig.api_key_encrypted || '')
+          setSystemPrompt(aiConfig.system_prompt || "You are Dr. Dente, a friendly and professional dental receptionist for a dental clinic. You help patients book appointments, answer questions about dental services, and provide oral health tips.")
+          setAgentName(aiConfig.persona_name || 'Dr. Dente')
+          setBusinessStart(aiConfig.business_hours_start || '09:00')
+          setBusinessEnd(aiConfig.business_hours_end || '18:00')
+          setOffHoursReply(!!aiConfig.off_hours_message)
+          setSupportedLanguages(aiConfig.supported_languages?.join(', ') || 'English')
+        }
+
+        // Load Widget config
+        const widgetConfig = await getWidgetConfig()
+        if (widgetConfig) {
+          setPrimaryColor(widgetConfig.primary_color || '#0ea5e9')
+          setWidgetPosition(widgetConfig.position || 'bottom-right')
+          setGreetingText(widgetConfig.greeting_text || 'Hi! How can we help you today?')
+          setEmbedToken(widgetConfig.embed_token || '')
+          setWidgetEnabled(widgetConfig.enabled ?? true)
+        }
+
+        // Load WhatsApp config
+        const waConfig = await getWhatsAppConfig()
+        if (waConfig) {
+          setWhatsappEnabled(waConfig.enabled ?? false)
+          setPhoneNumberId(waConfig.phone_number_id || '')
+          setWhatsappBusinessId(waConfig.whatsapp_business_id || '')
+          setWhatsappToken(waConfig.access_token_encrypted || '')
+          setWhatsappVerifyToken(waConfig.webhook_verify_token || '')
+        }
+
+        // Load Follow-up config
+        const followupConfig = await getFollowupConfig()
+        if (followupConfig) {
+          setFollowupEnabled(followupConfig.enabled ?? true)
+          setReminder24h(followupConfig.reminder_24h ?? true)
+          setReminder1h(followupConfig.reminder_1h ?? true)
+          setReminder30m(followupConfig.reminder_30m ?? false)
+          setPostVisitFollowup(followupConfig.post_visit_followup ?? true)
+          setCustomMsg24h(followupConfig.custom_message_24h || "Hi! Just a reminder about your appointment tomorrow. See you then!")
+          setCustomMsg1h(followupConfig.custom_message_1h || "Reminder: Your appointment is in 1 hour. Please arrive 10 minutes early.")
+          setCustomMsg30m(followupConfig.custom_message_30m || "Your appointment starts in 30 minutes. We look forward to seeing you!")
+          setCustomPostVisit(followupConfig.custom_post_visit || "Hope your visit went well! Don't forget to brush twice daily and floss. See you at your next appointment.")
+        }
+      } catch (err) {
+        console.error('Failed to load configs:', err)
+      }
+    }
+    loadConfigs()
+  }, [])
+
+  useEffect(() => {
+    if (!apiKey) {
       if (aiProvider !== "openai") {
         setAvailableModels([
           { id: "gemini-pro", name: "Gemini 1.5 Pro" },
@@ -1030,30 +1090,83 @@ ON CONFLICT (workspace_id) DO NOTHING;`
       } else {
         setAvailableModels([]) 
       }
+      setApiKeyError(null)
       return
     }
 
     const fetchModels = async () => {
       setIsFetchingModels(true)
+      setApiKeyError(null)
       try {
-        const res = await fetch("https://api.openai.com/v1/models", {
-          headers: {
-            "Authorization": `Bearer ${apiKey}`
-          }
-        })
-        if (res.ok) {
-          const data = await res.json()
-          const chatModels = data.data
-            .filter((m: any) => m.id.startsWith("gpt-") || m.id.startsWith("o1") || m.id.startsWith("o3"))
-            .map((m: any) => ({ id: m.id, name: m.id }))
-            .sort((a: any, b: any) => a.id.localeCompare(b.id))
+        let res: Response;
+        let models: { id: string; name: string }[] = [];
+
+        if (aiProvider === "openai") {
+          res = await fetch("https://api.openai.com/v1/models", {
+            headers: {
+              "Authorization": `Bearer ${apiKey}`
+            }
+          })
           
-          setAvailableModels(chatModels)
+          if (res.ok) {
+            const data = await res.json()
+            const chatModels = data.data
+              .filter((m: any) => m.id.startsWith("gpt-") || m.id.startsWith("o1") || m.id.startsWith("o3"))
+              .map((m: any) => ({ id: m.id, name: m.id }))
+              .sort((a: any, b: any) => a.id.localeCompare(b.id))
+            
+            models = chatModels
+          } else if (res.status === 401) {
+            setApiKeyError("Invalid API key - please check and try again")
+            setAvailableModels([])
+          } else {
+            setApiKeyError("Failed to fetch models - please try again")
+            setAvailableModels([])
+          }
+        } else if (aiProvider === "google") {
+          res = await fetch("https://generativelanguage.googleapis.com/v1/models?key=" + apiKey)
+          
+          if (res.ok) {
+            const data = await res.json()
+            models = (data.models || [])
+              .filter((m: any) => m.name?.includes("gemini"))
+              .map((m: any) => ({ 
+                id: m.name.split('/').pop() || m.name, 
+                name: m.displayName || m.name 
+              }))
+          } else if (res.status === 401 || res.status === 403) {
+            setApiKeyError("Invalid API key - please check and try again")
+            setAvailableModels([])
+          } else {
+            setApiKeyError("Failed to fetch models - please try again")
+            setAvailableModels([])
+          }
+        } else if (aiProvider === "openrouter") {
+          res = await fetch("https://openrouter.ai/api/v1/models", {
+            headers: {
+              "Authorization": `Bearer ${apiKey}`
+            }
+          })
+          
+          if (res.ok) {
+            const data = await res.json()
+            models = (data.data || [])
+              .map((m: any) => ({ 
+                id: m.id, 
+                name: m.name || m.id 
+              }))
+          } else {
+            setApiKeyError("Invalid API key - please check and try again")
+            setAvailableModels([])
+          }
         } else {
           setAvailableModels([])
         }
+        
+        setAvailableModels(models)
       } catch (err) {
         console.error(err)
+        setApiKeyError("Failed to validate API key - please check your connection")
         setAvailableModels([])
       }
       setIsFetchingModels(false)
@@ -1089,6 +1202,30 @@ ON CONFLICT (workspace_id) DO NOTHING;`
 
   const handleSaveAIConfig = async () => {
     setSaving('ai')
+    setApiKeyError(null)
+    
+    // Validate API key before saving
+    if (apiKey && aiProvider === 'openai') {
+      setApiKeyValidating(true)
+      try {
+        const res = await fetch("https://api.openai.com/v1/models", {
+          headers: { "Authorization": `Bearer ${apiKey}` }
+        })
+        if (!res.ok) {
+          setApiKeyError("Invalid API key - please check and try again")
+          setSaving(null)
+          setApiKeyValidating(false)
+          return
+        }
+      } catch (err) {
+        setApiKeyError("Failed to validate API key")
+        setSaving(null)
+        setApiKeyValidating(false)
+        return
+      }
+      setApiKeyValidating(false)
+    }
+    
     try {
       // 1. Get/create workspace id first
       const { data: wsData, error: wsError } = await supabase
@@ -1373,6 +1510,9 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                 />
+                {apiKeyError && (
+                  <p className="text-xs text-red-600 dark:text-red-500">{apiKeyError}</p>
+                )}
                 <p className="text-xs text-muted-foreground">Stored securely in your database</p>
               </div>
 
@@ -1420,10 +1560,12 @@ ON CONFLICT (workspace_id) DO NOTHING;`
               <Button
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleSaveAIConfig}
-                disabled={saving === 'ai'}
+                disabled={saving === 'ai' || apiKeyValidating}
               >
                 {saving === 'ai' ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
+                ) : apiKeyValidating ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Validating...</>
                 ) : "Save Configuration"}
               </Button>
             </CardContent>
