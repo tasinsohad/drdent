@@ -1,34 +1,27 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase-client"
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const callbackUrl = searchParams.get('callbackUrl') || '/conversations'
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-  const supabase = createClient(supabaseUrl, supabaseAnonKey)
+  const requestUrl = new URL(request.url)
 
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
+    provider: "google",
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/callback?redirect=${encodeURIComponent(callbackUrl)}`,
+      redirectTo: `${requestUrl.origin}/auth/callback`,
       queryParams: {
-        access_type: 'offline',
-        prompt: 'consent',
+        access_type: "offline",
+        prompt: "consent",
       },
     },
   })
 
-  if (error) {
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, request.url))
+  if (error || !data.url) {
+    return NextResponse.redirect(
+      `${requestUrl.origin}/login?error=${encodeURIComponent(
+        error?.message ?? "Google sign-in failed"
+      )}`
+    )
   }
 
-  if (data.url) {
-    return NextResponse.redirect(data.url)
-  }
-
-  return NextResponse.redirect(new URL('/login?error=Failed to initiate Google sign in', request.url))
+  return NextResponse.redirect(data.url)
 }

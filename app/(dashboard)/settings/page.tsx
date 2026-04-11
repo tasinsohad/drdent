@@ -35,7 +35,13 @@ import {
   Bell,
   Clock,
   MessageSquare,
-  History
+  History,
+  User,
+  Mail,
+  Lock,
+  Download,
+  Trash2,
+  AlertCircle,
 } from "lucide-react"
 import { useAppStore } from "@/lib/store"
 import { supabase, testSupabaseConnection } from "@/lib/supabase-client"
@@ -379,6 +385,29 @@ export default function SettingsPage() {
   const [checking, setChecking] = useState(false)
   const [migrating, setMigrating] = useState(false)
   const [migrationResult, setMigrationResult] = useState<{success: boolean; message: string; sql?: string} | null>(null)
+
+  // Profile tab state
+  const [profileDisplayName, setProfileDisplayName] = useState("")
+  const [profilePracticeName, setProfilePracticeName] = useState("")
+  const [profileEmail, setProfileEmail] = useState("")
+  const [profileNewPassword, setProfileNewPassword] = useState("")
+  const [profileConfirmPassword, setProfileConfirmPassword] = useState("")
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Notification preferences state
+  const [notifEmailAppointment, setNotifEmailAppointment] = useState(true)
+  const [notifEmailMessage, setNotifEmailMessage] = useState(true)
+  const [notifEmailWeeklySummary, setNotifEmailWeeklySummary] = useState(false)
+  const [notifPushUrgent, setNotifPushUrgent] = useState(true)
+  const [notifSaving, setNotifSaving] = useState(false)
+
+  // Account tab state
+  const [locale, setLocale] = useState("en")
+  const [exportLoading, setExportLoading] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState("")
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState(false)
 
   const databaseMigrationSQL = `-- =====================================================
 -- Dr. Dent - Complete Database Schema
@@ -1326,8 +1355,20 @@ ON CONFLICT (workspace_id) DO NOTHING;`
         <p className="text-muted-foreground">Configure your workspace</p>
       </div>
 
-      <Tabs defaultValue="backend" className="space-y-6">
-        <TabsList className="grid grid-cols-3 md:grid-cols-10 w-full h-auto flex-wrap">
+      <Tabs defaultValue="profile" className="space-y-6">
+        <TabsList className="grid grid-cols-4 md:grid-cols-12 w-full h-auto flex-wrap">
+          <TabsTrigger value="profile" className="gap-1.5 text-xs py-2">
+            <User className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Profile</span>
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-1.5 text-xs py-2">
+            <Bell className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Alerts</span>
+          </TabsTrigger>
+          <TabsTrigger value="account" className="gap-1.5 text-xs py-2">
+            <Globe className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Account</span>
+          </TabsTrigger>
           <TabsTrigger value="backend" className="gap-1.5 text-xs py-2">
             <Database className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Backend</span>
@@ -1337,7 +1378,7 @@ ON CONFLICT (workspace_id) DO NOTHING;`
             <span className="hidden sm:inline">AI</span>
           </TabsTrigger>
           <TabsTrigger value="followups" className="gap-1.5 text-xs py-2">
-            <Bell className="h-3.5 w-3.5" />
+            <Clock className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Follow-ups</span>
           </TabsTrigger>
           <TabsTrigger value="calendar" className="gap-1.5 text-xs py-2">
@@ -2056,6 +2097,377 @@ ON CONFLICT (workspace_id) DO NOTHING;`
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ─── Profile Tab ─────────────────────────────────────────────── */}
+        <TabsContent value="profile" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Profile Settings
+              </CardTitle>
+              <CardDescription>Update your personal and practice information</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {profileMsg && (
+                <div role="alert" className={`p-3 rounded-lg text-sm border ${
+                  profileMsg.type === 'success'
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-red-50 border-red-200 text-red-700'
+                }`}>
+                  {profileMsg.text}
+                </div>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="displayName">Display Name</Label>
+                  <Input
+                    id="displayName"
+                    placeholder="Dr. Jane Smith"
+                    value={profileDisplayName}
+                    onChange={e => setProfileDisplayName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="practiceName">Practice Name</Label>
+                  <Input
+                    id="practiceName"
+                    placeholder="Smile Dental Clinic"
+                    value={profilePracticeName}
+                    onChange={e => setProfilePracticeName(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="profileEmail">Email Address</Label>
+                <Input
+                  id="profileEmail"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={profileEmail}
+                  onChange={e => setProfileEmail(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Changing your email requires re-confirmation.</p>
+              </div>
+
+              <div className="border-t pt-6 space-y-4">
+                <h4 className="font-medium text-sm">Change Password</h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      placeholder="••••••••"
+                      value={profileNewPassword}
+                      onChange={e => setProfileNewPassword(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmNewPassword">Confirm New Password</Label>
+                    <Input
+                      id="confirmNewPassword"
+                      type="password"
+                      placeholder="••••••••"
+                      value={profileConfirmPassword}
+                      onChange={e => setProfileConfirmPassword(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={async () => {
+                    setProfileSaving(true)
+                    setProfileMsg(null)
+                    try {
+                      const updates: { data?: Record<string,string>; email?: string; password?: string } = {}
+                      if (profileDisplayName || profilePracticeName) {
+                        updates.data = {
+                          display_name: profileDisplayName,
+                          practice_name: profilePracticeName,
+                        }
+                      }
+                      if (profileEmail) updates.email = profileEmail
+                      if (profileNewPassword) {
+                        if (profileNewPassword !== profileConfirmPassword) {
+                          setProfileMsg({ type: 'error', text: 'Passwords do not match.' })
+                          setProfileSaving(false)
+                          return
+                        }
+                        if (profileNewPassword.length < 8) {
+                          setProfileMsg({ type: 'error', text: 'Password must be at least 8 characters.' })
+                          setProfileSaving(false)
+                          return
+                        }
+                        updates.password = profileNewPassword
+                      }
+                      const { error } = await supabase.auth.updateUser(updates)
+                      if (error) throw error
+                      setProfileMsg({ type: 'success', text: 'Profile updated successfully.' })
+                      setProfileNewPassword('')
+                      setProfileConfirmPassword('')
+                    } catch (err: any) {
+                      setProfileMsg({ type: 'error', text: err.message || 'Failed to update profile.' })
+                    }
+                    setProfileSaving(false)
+                  }}
+                  disabled={profileSaving}
+                >
+                  {profileSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : 'Save Changes'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── Notification Preferences Tab ────────────────────────────── */}
+        <TabsContent value="notifications" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Notification Preferences
+              </CardTitle>
+              <CardDescription>Choose which alerts you want to receive</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm flex items-center gap-2">
+                  <Mail className="h-4 w-4" aria-hidden="true" /> Email Notifications
+                </h4>
+                {([
+                  { id: 'appt', label: 'Appointment reminders', desc: 'Get emailed when appointments are booked or cancelled', value: notifEmailAppointment, setter: setNotifEmailAppointment },
+                  { id: 'msg', label: 'New patient messages', desc: 'Receive an email when a patient sends an urgent message', value: notifEmailMessage, setter: setNotifEmailMessage },
+                  { id: 'summary', label: 'Weekly summary', desc: 'A digest of conversations, appointments, and analytics every Monday', value: notifEmailWeeklySummary, setter: setNotifEmailWeeklySummary },
+                ] as const).map(item => (
+                  <div key={item.id} className="flex items-start justify-between gap-4 p-4 rounded-lg border">
+                    <div>
+                      <p className="text-sm font-medium">{item.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                    </div>
+                    <Switch
+                      id={`notif-${item.id}`}
+                      checked={item.value}
+                      onCheckedChange={item.setter}
+                      aria-label={item.label}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm flex items-center gap-2">
+                  <Bell className="h-4 w-4" aria-hidden="true" /> In-App Notifications
+                </h4>
+                <div className="flex items-start justify-between gap-4 p-4 rounded-lg border">
+                  <div>
+                    <p className="text-sm font-medium">Urgent messages</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Show a badge and notification for high-priority patient messages</p>
+                  </div>
+                  <Switch
+                    id="notif-push-urgent"
+                    checked={notifPushUrgent}
+                    onCheckedChange={setNotifPushUrgent}
+                    aria-label="Urgent message in-app notifications"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={async () => {
+                    setNotifSaving(true)
+                    // Persist to localStorage as a lightweight preference store
+                    localStorage.setItem('dr-dent-notif-prefs', JSON.stringify({
+                      emailAppointment: notifEmailAppointment,
+                      emailMessage: notifEmailMessage,
+                      emailWeeklySummary: notifEmailWeeklySummary,
+                      pushUrgent: notifPushUrgent,
+                    }))
+                    await new Promise(r => setTimeout(r, 500))
+                    setNotifSaving(false)
+                  }}
+                  disabled={notifSaving}
+                >
+                  {notifSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : 'Save Preferences'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── Account Tab ─────────────────────────────────────────────── */}
+        <TabsContent value="account" className="space-y-6">
+          {/* Locale */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="h-5 w-5" />
+                Language &amp; Locale
+              </CardTitle>
+              <CardDescription>Set your preferred language and date/time format</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="localeSelect">Language</Label>
+                <Select value={locale} onValueChange={v => { setLocale(v); localStorage.setItem('dr-dent-locale', v) }}>
+                  <SelectTrigger id="localeSelect">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English (US)</SelectItem>
+                    <SelectItem value="en-GB">English (UK)</SelectItem>
+                    <SelectItem value="es">Español</SelectItem>
+                    <SelectItem value="fr">Français</SelectItem>
+                    <SelectItem value="de">Deutsch</SelectItem>
+                    <SelectItem value="ar">العربية</SelectItem>
+                    <SelectItem value="bn">বাংলা</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Full i18n support is coming soon. This saves your preference for future releases.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Export data */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Download className="h-5 w-5" />
+                Export Your Data
+              </CardTitle>
+              <CardDescription>
+                Download a full export of your patients, appointments, and conversations as CSV/JSON.
+                Your data belongs to you.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  setExportLoading(true)
+                  try {
+                    const res = await fetch('/api/export', { method: 'GET' })
+                    if (res.ok) {
+                      const blob = await res.blob()
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `dr-dent-export-${new Date().toISOString().split('T')[0]}.json`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    } else {
+                      alert('Export failed. Please try again.')
+                    }
+                  } catch {
+                    alert('Export failed. Please try again.')
+                  }
+                  setExportLoading(false)
+                }}
+                disabled={exportLoading}
+              >
+                {exportLoading
+                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Preparing export…</>
+                  : <><Download className="h-4 w-4 mr-2" />Download My Data</>}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Delete account (GDPR) */}
+          <Card className="border-red-200 dark:border-red-900">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600">
+                <Trash2 className="h-5 w-5" />
+                Delete Account
+              </CardTitle>
+              <CardDescription>
+                Permanently delete your account and all associated data. This action is irreversible and cannot be undone.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                onClick={() => setDeleteModalOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
+                Delete My Account
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Delete confirmation modal */}
+          {deleteModalOpen && (
+            <div
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-modal-title"
+            >
+              <div className="bg-background rounded-xl border p-6 w-full max-w-md space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <Trash2 className="h-5 w-5 text-red-600" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h3 id="delete-modal-title" className="font-semibold">Delete account permanently?</h3>
+                    <p className="text-sm text-muted-foreground">This will erase all your data.</p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Type <strong>DELETE</strong> below to confirm:
+                </p>
+                <Input
+                  value={deleteConfirmText}
+                  onChange={e => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                  aria-label="Type DELETE to confirm account deletion"
+                />
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { setDeleteModalOpen(false); setDeleteConfirmText('') }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                    disabled={deleteConfirmText !== 'DELETE' || deletingAccount}
+                    onClick={async () => {
+                      setDeletingAccount(true)
+                      try {
+                        const res = await fetch('/api/auth/delete-account', { method: 'POST' })
+                        if (res.ok) {
+                          await supabase.auth.signOut()
+                          window.location.href = '/signup'
+                        } else {
+                          alert('Failed to delete account. Please contact support.')
+                        }
+                      } catch {
+                        alert('Failed to delete account. Please contact support.')
+                      }
+                      setDeletingAccount(false)
+                    }}
+                  >
+                    {deletingAccount
+                      ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deleting…</>
+                      : 'Confirm Delete'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
       </Tabs>
     </div>
   )

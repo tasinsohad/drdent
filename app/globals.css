@@ -61,9 +61,33 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* ─── Global focus-visible ring (WCAG 2.1 AA) ─────────────────────── */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+
+  /* Remove outline for mouse users only */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
 }
 
-/* Custom scrollbar */
+/* ─── Reduced motion ────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Custom scrollbar ─────────────────────────────────────────────────── */
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
@@ -85,7 +109,7 @@
   }
 }
 
-/* Glass morphism utilities */
+/* ─── Glassmorphism utilities ─────────────────────────────────────────── */
 @layer utilities {
   .glass {
     background: rgba(255, 255, 255, 0.05);
@@ -101,7 +125,7 @@
   }
 }
 
-/* Staggered animation delays */
+/* ─── Staggered animation delays ──────────────────────────────────────── */
 @layer utilities {
   .delay-100 { animation-delay: 100ms; }
   .delay-200 { animation-delay: 200ms; }
@@ -110,4 +134,29 @@
   .delay-500 { animation-delay: 500ms; }
   .delay-600 { animation-delay: 600ms; }
   .delay-700 { animation-delay: 700ms; }
+}
+
+/* ─── Skip-to-content link (a11y) ─────────────────────────────────────── */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.skip-to-content:focus {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 9999;
+  width: auto;
+  height: auto;
+  padding: 0.5rem 1rem;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.875rem;
 }

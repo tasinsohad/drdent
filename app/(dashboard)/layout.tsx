@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -13,7 +14,6 @@ import {
   Users,
   Settings,
   BarChart3,
-  Bot,
   PanelLeftClose,
   PanelLeft,
   LogOut,
@@ -23,18 +23,20 @@ import {
   Search,
   Menu,
   X,
-  Plus,
   AlertTriangle,
   AlertCircle,
   Info,
-  CheckCircle
+  CheckCircle,
+  WifiOff,
 } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { GlobalSearch } from "@/components/global-search"
-import { OnboardingWizard } from "@/components/onboarding-wizard"
-import { SyncIndicator, SyncStatusBadge } from "@/components/sync-indicator"
-import { useSyncManager } from "@/hooks/useSyncManager"
 import { supabase } from "@/lib/supabase-client"
+
+// Lazy-load heavy components to improve initial load performance
+const GlobalSearch = dynamic(() => import("@/components/global-search").then(m => ({ default: m.GlobalSearch })), { ssr: false })
+const OnboardingWizard = dynamic(() => import("@/components/onboarding-wizard").then(m => ({ default: m.OnboardingWizard })), { ssr: false })
+const SyncIndicator = dynamic(() => import("@/components/sync-indicator").then(m => ({ default: m.SyncIndicator })), { ssr: false })
+import { useSyncManager } from "@/hooks/useSyncManager"
 
 const navItems = [
   { href: "/conversations", label: "Conversations", icon: MessageCircle },
@@ -68,6 +70,7 @@ export default function DashboardLayout({
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
   const { user, isInitialized, isLoading, initializeAuth, logout, supabaseConnected, checkSupabaseConnection } = useAppStore()
   
   useSyncManager()
@@ -75,7 +78,21 @@ export default function DashboardLayout({
   useEffect(() => {
     initializeAuth()
     checkSupabaseConnection()
-  }, [initializeAuth, checkSupabaseConnection])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Online/offline detection
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true)
+    const onOffline = () => setIsOnline(false)
+    setIsOnline(navigator.onLine)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [])
 
   useEffect(() => {
     if (isInitialized && !user && !isLoading) {
@@ -230,11 +247,15 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Skip to main content — accessibility */}
+      <a href="#main-content" className="skip-to-content">Skip to main content</a>
+
       {/* Mobile sidebar overlay */}
       {mobileSidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={() => setMobileSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
@@ -245,10 +266,11 @@ export default function DashboardLayout({
           sidebarOpen ? "w-64" : "w-16",
           mobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
+        aria-label="Sidebar navigation"
       >
         <div className="flex h-16 items-center justify-between px-4 border-b">
-          <Link href="/conversations" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+          <Link href="/conversations" className="flex items-center gap-2" aria-label="Dr. Dent — go to conversations">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center" aria-hidden="true">
               <span className="text-white font-bold text-sm">D</span>
             </div>
             {sidebarOpen && <span className="font-semibold hidden sm:block">Dr. Dent</span>}
@@ -259,21 +281,23 @@ export default function DashboardLayout({
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="hidden md:flex"
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
-              {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+              {sidebarOpen ? <PanelLeftClose className="h-4 w-4" aria-hidden="true" /> : <PanelLeft className="h-4 w-4" aria-hidden="true" />}
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setMobileSidebarOpen(false)}
               className="md:hidden"
+              aria-label="Close sidebar"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         </div>
 
-        <nav className="p-2 space-y-1">
+        <nav className="p-2 space-y-1" role="navigation" aria-label="Main navigation">
           {navItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
             return (
@@ -281,6 +305,7 @@ export default function DashboardLayout({
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileSidebarOpen(false)}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
                   isActive
@@ -288,8 +313,9 @@ export default function DashboardLayout({
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                <item.icon className="h-5 w-5 flex-shrink-0" />
+                <item.icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
                 {sidebarOpen && <span className="hidden sm:inline">{item.label}</span>}
+                {!sidebarOpen && <span className="sr-only">{item.label}</span>}
               </Link>
             )
           })}
@@ -318,16 +344,26 @@ export default function DashboardLayout({
         size="icon"
         className="fixed bottom-4 left-4 z-30 md:hidden shadow-lg"
         onClick={() => setMobileSidebarOpen(true)}
+        aria-label="Open navigation menu"
       >
-        <Menu className="h-4 w-4" />
+        <Menu className="h-4 w-4" aria-hidden="true" />
       </Button>
 
       <main
+        id="main-content"
         className={cn(
           "min-h-screen transition-all duration-300",
           sidebarOpen ? "md:ml-64" : "md:ml-16"
         )}
       >
+        {/* Offline banner */}
+        {!isOnline && (
+          <div role="alert" className="bg-amber-500 text-white px-4 py-2 text-sm flex items-center justify-center gap-2">
+            <WifiOff className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            <span>You're offline. Changes will sync when you reconnect.</span>
+          </div>
+        )}
+
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 backdrop-blur px-4 md:px-6">
           <div className="flex items-center gap-3">
             <Button
@@ -335,8 +371,9 @@ export default function DashboardLayout({
               size="icon"
               className="md:hidden"
               onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open navigation menu"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-5 w-5" aria-hidden="true" />
             </Button>
             <h1 className="text-base md:text-lg font-semibold">
               {navItems.find(item => pathname.startsWith(item.href))?.label || "Dashboard"}
@@ -350,8 +387,9 @@ export default function DashboardLayout({
               size="icon"
               className="md:hidden"
               onClick={() => setSearchOpen(true)}
+              aria-label="Open search"
             >
-              <Search className="h-4 w-4" />
+              <Search className="h-4 w-4" aria-hidden="true" />
             </Button>
 
             {/* Search - desktop */}
@@ -366,10 +404,13 @@ export default function DashboardLayout({
                 size="icon"
                 className="relative"
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
+                aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+                aria-haspopup="true"
+                aria-expanded={notificationsOpen}
               >
-                <Bell className="h-5 w-5" />
+                <Bell className="h-5 w-5" aria-hidden="true" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center" aria-hidden="true">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -450,23 +491,35 @@ export default function DashboardLayout({
                 size="icon"
                 className="h-8 w-8 rounded-full"
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
+                aria-label="User account menu"
+                aria-haspopup="true"
+                aria-expanded={userMenuOpen}
               >
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center" aria-hidden="true">
                   <span className="text-white text-xs font-bold">{userInitial}</span>
                 </div>
               </Button>
               {userMenuOpen && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border bg-background shadow-lg py-1 z-50">
+                  <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} aria-hidden="true" />
+                  <div className="absolute right-0 top-full mt-2 w-52 rounded-lg border bg-background shadow-lg py-1 z-50" role="menu" aria-label="User menu">
                     <div className="px-3 py-2 border-b">
                       <p className="text-sm font-medium truncate">{userEmail}</p>
                     </div>
+                    <Link
+                      href="/settings"
+                      onClick={() => setUserMenuOpen(false)}
+                      role="menuitem"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                    >
+                      Profile &amp; Settings
+                    </Link>
                     <button
                       onClick={handleLogout}
+                      role="menuitem"
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                     >
-                      <LogOut className="h-4 w-4" />
+                      <LogOut className="h-4 w-4" aria-hidden="true" />
                       Sign out
                     </button>
                   </div>
