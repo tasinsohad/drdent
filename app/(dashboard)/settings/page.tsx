@@ -1308,7 +1308,7 @@ ON CONFLICT (workspace_id) DO NOTHING;`
       toast?.({
         title: "Save Failed",
         description: err.message || "Failed to save widget settings.",
-        variant: "destructive"
+        variant: "error"
       })
     }
     setTimeout(() => setSaving(null), 500);
@@ -1350,7 +1350,7 @@ ON CONFLICT (workspace_id) DO NOTHING;`
       toast?.({
         title: "Save Failed",
         description: err.message || "Failed to save WhatsApp credentials.",
-        variant: "destructive"
+        variant: "error"
       })
     }
     setTimeout(() => setSaving(null), 500);
