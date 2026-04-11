@@ -270,8 +270,8 @@ export default function DashboardLayout({
       >
         <div className="flex h-16 items-center justify-between px-4 border-b">
           <Link href="/conversations" className="flex items-center gap-2" aria-label="Dr. Dent — go to conversations">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center" aria-hidden="true">
-              <span className="text-white font-bold text-sm">D</span>
+            <div className="w-8 h-8 shrink-0 relative overflow-hidden rounded-lg bg-white shadow-sm border border-slate-200" aria-hidden="true">
+              <img src="/logo.png" alt="Dr. Dent" className="object-cover w-full h-full" />
             </div>
             {sidebarOpen && <span className="font-semibold hidden sm:block">Dr. Dent</span>}
           </Link>
