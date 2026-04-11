@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS patients (
     tags TEXT[] DEFAULT '{}',
     notes TEXT,
     source TEXT DEFAULT 'widget',
+    status TEXT DEFAULT 'lead',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

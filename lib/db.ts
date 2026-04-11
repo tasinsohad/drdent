@@ -206,7 +206,7 @@ export async function getAnalytics(days: number = 7) {
   return data || []
 }
 
-export async function createPatient(patient: { name: string; phone?: string; email?: string }) {
+export async function createPatient(patient: { name: string; phone?: string; email?: string; status?: string; tags?: string[] }) {
   const workspaceId = await ensureWorkspace()
   
   const { data, error } = await supabase
@@ -216,12 +216,59 @@ export async function createPatient(patient: { name: string; phone?: string; ema
       name: patient.name,
       phone: patient.phone,
       email: patient.email,
+      status: patient.status || 'lead',
+      tags: patient.tags || [],
     })
     .select()
     .single()
   
   if (error) throw new Error(error.message)
   return data
+}
+
+export async function updatePatient(patientId: string, updates: {
+  name?: string
+  phone?: string
+  email?: string
+  status?: string
+  tags?: string[]
+}) {
+  const payload: Record<string, any> = {
+    updated_at: new Date().toISOString()
+  }
+  if (updates.name !== undefined) payload.name = updates.name
+  if (updates.phone !== undefined) payload.phone = updates.phone
+  if (updates.email !== undefined) payload.email = updates.email
+  if (updates.status !== undefined) payload.status = updates.status
+  if (updates.tags !== undefined) payload.tags = updates.tags
+
+  const { error } = await supabase
+    .from('patients')
+    .update(payload)
+    .eq('id', patientId)
+  
+  if (error) throw new Error(error.message)
+}
+
+export async function updatePatientStatus(patientId: string, newStatus: string) {
+  const { error } = await supabase
+    .from('patients')
+    .update({ 
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', patientId)
+  
+  if (error) throw new Error(error.message)
+}
+
+export async function deletePatient(patientId: string) {
+  const { error } = await supabase
+    .from('patients')
+    .delete()
+    .eq('id', patientId)
+  
+  if (error) throw new Error(error.message)
 }
 
 export async function createAppointment(appointment: {
