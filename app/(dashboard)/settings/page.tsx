@@ -45,6 +45,7 @@ import {
 } from "lucide-react"
 import { useAppStore } from "@/lib/store"
 import { supabase, testSupabaseConnection } from "@/lib/supabase-client"
+import { useToast } from "@/components/ui/toaster"
 import { getFollowupConfig, saveFollowupConfig, getAuditLogs, getAIConfig, getWidgetConfig, getWhatsAppConfig } from "@/lib/db"
 
 const docSections = [
@@ -378,6 +379,7 @@ CREATE TABLE IF NOT EXISTS widget_config (
 ]
 
 export default function SettingsPage() {
+  const { toast } = useToast()
   const { supabaseConnected, supabaseError, checkSupabaseConnection } = useAppStore()
 
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
