@@ -323,7 +323,7 @@ export default function PatientsKanbanPage() {
     <div className="flex flex-col h-full space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Patients Pipeline</h2>
+          <h2 className="text-2xl font-bold font-heading tracking-tight text-slate-800 dark:text-slate-100">Patients Pipeline</h2>
           <p className="text-sm text-slate-500">Manage patient journey from lead to completed</p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -356,7 +356,7 @@ export default function PatientsKanbanPage() {
             <div className="w-16 h-16 bg-blue-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
               <UserPlus className="h-8 w-8 text-blue-500" />
             </div>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">No patients yet</h3>
+            <h3 className="text-xl font-bold font-heading text-slate-800 dark:text-slate-200 mb-2">No patients yet</h3>
             <p className="text-slate-500 max-w-sm mx-auto mb-8">
               Your patient pipeline is empty. Add a new patient manually or wait for leads to come through the widget.
             </p>
@@ -432,7 +432,7 @@ export default function PatientsKanbanPage() {
       <Dialog open={isFormModalOpen} onOpenChange={setIsFormModalOpen}>
         <DialogContent className="sm:max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">{editingPatient ? "Edit Patient" : "Add Patient"}</DialogTitle>
+            <DialogTitle className="text-xl font-bold font-heading">{editingPatient ? "Edit Patient" : "Add Patient"}</DialogTitle>
             <DialogDescription>
               {editingPatient ? "Update patient contact details." : "Enter new lead information."}
             </DialogDescription>
@@ -486,7 +486,7 @@ export default function PatientsKanbanPage() {
             <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
               <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-500" />
             </div>
-            <DialogTitle className="text-xl font-bold">Delete Patient</DialogTitle>
+            <DialogTitle className="text-xl font-bold font-heading">Delete Patient</DialogTitle>
             <DialogDescription className="text-slate-500 mt-2">
               Are you sure you want to permanently delete <strong className="text-slate-800 dark:text-slate-200">{deletingPatient?.name}</strong>? 
               This action cannot be undone and will remove them from the pipeline.
