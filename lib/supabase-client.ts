@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -7,21 +8,14 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 let supabase: SupabaseClient
 
 if (supabaseUrl && supabaseAnonKey) {
-  supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  })
+  supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
 } else {
   console.warn(
     '[Dr. Dent] Missing Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY). ' +
     'Database features will be unavailable.'
   )
   // Create a dummy client that won't crash — operations will fail gracefully
-  supabase = createClient('https://placeholder.supabase.co', 'placeholder-key', {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
+  supabase = createBrowserClient('https://placeholder.supabase.co', 'placeholder-key')
 }
 
 export { supabase }

@@ -57,20 +57,6 @@ export const useAppStore = create<AppState>()(
           }
 
           set({ user: data.user, isLoading: false, error: null })
-          
-          if (data.session) {
-            try {
-              await fetch('/api/auth/set-cookies', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  accessToken: data.session.access_token,
-                  refreshToken: data.session.refresh_token,
-                }),
-              })
-            } catch (_) {}
-          }
-          
           return { success: true }
         } catch (err: unknown) {
           const errorMsg = err instanceof Error ? err.message : 'Network error — please try again'
