@@ -1003,6 +1003,10 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const [availableModels, setAvailableModels] = useState<{id: string, name: string}[]>([])
   const [isFetchingModels, setIsFetchingModels] = useState(false)
 
+  const [testMessage, setTestMessage] = useState("")
+  const [testingAI, setTestingAI] = useState(false)
+  const [testResponse, setTestResponse] = useState("")
+
   const [primaryColor, setPrimaryColor] = useState("#0ea5e9")
   const [widgetPosition, setWidgetPosition] = useState("bottom-right")
   const [greetingText, setGreetingText] = useState("Hi! How can we help you today?")
@@ -1290,6 +1294,91 @@ ON CONFLICT (workspace_id) DO NOTHING;`
       console.error('Failed to save AI config:', err)
     }
     setTimeout(() => setSaving(null), 1000); // simulate delay for feedback
+  }
+
+  const handleTestAI = async () => {
+    if (!testMessage.trim() || !apiKey) return
+    
+    setTestingAI(true)
+    setTestResponse("")
+    
+    try {
+      const { data: wsData } = await supabase.from('workspaces').select('id').limit(1).single()
+      const workspaceId = wsData?.id
+      
+      if (!workspaceId) {
+        setTestResponse("Error: No workspace found")
+        setTestingAI(false)
+        return
+      }
+
+      const { data: config } = await supabase
+        .from('ai_configs')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .single()
+
+      if (!config || !config.api_key_encrypted) {
+        setTestResponse("Error: AI not configured. Please save your API key first.")
+        setTestingAI(false)
+        return
+      }
+
+      let response: Response
+      let reply = ""
+
+      if (config.provider === 'openai' || config.provider === 'custom') {
+        response = await fetch(config.base_url || 'https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.api_key_encrypted}`
+          },
+          body: JSON.stringify({
+            model: config.model,
+            messages: [
+              { role: 'system', content: config.system_prompt },
+              { role: 'user', content: testMessage }
+            ],
+            max_tokens: 500,
+            temperature: 0.7
+          })
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          reply = data.choices?.[0]?.message?.content || "No response generated"
+        } else {
+          const errorData = await response.json()
+          reply = `Error: ${errorData.error?.message || 'Failed to get response'}`
+        }
+      } else if (config.provider === 'google') {
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${config.model || 'gemini-1.5-flash'}:generateContent?key=${config.api_key_encrypted}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: testMessage }] }],
+            systemInstruction: { parts: [{ text: config.system_prompt }] }
+          })
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated"
+        } else {
+          const errorData = await response.json()
+          reply = `Error: ${errorData.error?.message || 'Failed to get response'}`
+        }
+      } else {
+        reply = "Unsupported provider. Please use OpenAI or Google."
+      }
+      
+      setTestResponse(reply)
+    } catch (err: any) {
+      setTestResponse(`Error: ${err.message || 'Failed to test AI'}`)
+    }
+    
+    setTestingAI(false)
   }
 
   const handleSaveWidgetConfig = async () => {
@@ -1610,6 +1699,42 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Validating...</>
                 ) : "Save Configuration"}
               </Button>
+
+              {apiKey && (
+                <div className="mt-6 border rounded-lg overflow-hidden">
+                  <div className="bg-muted px-4 py-3 border-b">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Bot className="h-4 w-4" />
+                      Test AI Assistant
+                    </h4>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Send a test message to verify your AI is working correctly.
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Type a test message..."
+                        value={testMessage}
+                        onChange={(e) => setTestMessage(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !testingAI && testMessage.trim() && handleTestAI()}
+                      />
+                      <Button
+                        onClick={handleTestAI}
+                        disabled={testingAI || !testMessage.trim()}
+                      >
+                        {testingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
+                      </Button>
+                    </div>
+                    {testResponse && (
+                      <div className="bg-muted/50 rounded-lg p-4">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">AI Response:</p>
+                        <p className="text-sm">{testResponse}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
