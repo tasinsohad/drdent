@@ -7,29 +7,19 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 async function test() {
-  const tables = [
-    'workspaces', 
-    'ai_configs', 
-    'patients', 
-    'conversations', 
-    'messages',
-    'appointments', 
-    'followup_configs', 
-    'widget_config', 
-    'whatsapp_config', 
-    'audit_logs', 
-    'analytics'
-  ]
+  console.log("Checking database state...")
   
-  console.log("Checking database schema status...")
-  for (const table of tables) {
-    const { error } = await supabase.from(table).select('count', { count: 'exact', head: true })
-    if (error) {
-      console.log(`❌ ${table.padEnd(20)}: ${error.message}`)
-    } else {
-      console.log(`✅ ${table.padEnd(20)}: Table exists`)
-    }
-  }
+  const { data: workspaces, error: wsError } = await supabase.from('workspaces').select('*')
+  if (wsError) console.error("❌ Workspace Fetch Error:", wsError.message)
+  else console.log("📊 Workspaces count:", workspaces?.length || 0, workspaces)
+
+  const { data: configs, error: cfgError } = await supabase.from('whatsapp_config').select('*')
+  if (cfgError) console.error("❌ WhatsApp Config Error:", cfgError.message)
+  else console.log("📊 WhatsApp Config count:", configs?.length || 0, configs)
+
+  const { data: convs, error: convError } = await supabase.from('conversations').select('*')
+  if (convError) console.error("❌ Conversations Error:", convError.message)
+  else console.log("📊 Conversations count:", convs?.length || 0)
 }
 
 test()

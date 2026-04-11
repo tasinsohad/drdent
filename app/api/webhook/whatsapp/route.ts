@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase-client'
+import { supabaseServer as supabase } from '@/lib/supabase-server'
 import { getAIContext, generateAIResponse } from '@/lib/ai'
+import { decrypt } from '@/lib/encryption'
+import { ensureWorkspace } from '@/lib/db'
 
-// Deployment Marker: 2026-04-11T14:30:00Z - Production-Ready Verification
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const mode = searchParams.get('hub.mode')
@@ -47,20 +50,21 @@ export async function GET(request: NextRequest) {
   }
 
   console.log('❌ Verification FAILED - invalid token')
-  console.log('  Expected token: drdent, drdent_verify_2024, or WHATSAPP_VERIFY_TOKEN env var')
   return new Response('Verification failed', { status: 403 })
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    console.log('WhatsApp webhook received:', JSON.stringify(body, null, 2))
+    console.log('📥 WhatsApp WEBHOOK Received:', JSON.stringify(body, null, 2))
 
     const entry = body.entry?.[0]
     const changes = entry?.changes?.[0]
-    const messages = changes?.value?.messages
+    const value = changes?.value
+    const messages = value?.messages
 
     if (!messages || messages.length === 0) {
+      console.log('ℹ️ No messages in webhook body')
       return new NextResponse('OK', { status: 200 })
     }
 
@@ -69,62 +73,78 @@ export async function POST(request: NextRequest) {
       const messageText = msg.text?.body || ''
       const msgTimestamp = msg.timestamp
 
-      if (!from || !messageText) continue
+      console.log(`💬 Processing message from ${from}: "${messageText}"`)
 
-      const { data: workspace } = await supabase
+      if (!from || !messageText) {
+        console.warn('⚠️ Missing data in message:', { from, messageText })
+        continue
+      }
+
+      // 1. Get/Initialize Workspace
+      let workspaceId = ''
+      const { data: workspace, error: wsError } = await supabase
         .from('workspaces')
         .select('id')
         .limit(1)
         .single()
 
-      if (!workspace) {
-        console.error('No workspace found')
-        continue
+      if (wsError || !workspace) {
+        console.log('🛠️ No workspace found, auto-initializing...')
+        workspaceId = await ensureWorkspace()
+      } else {
+        workspaceId = workspace.id
       }
+      console.log('🏢 Workspace ID:', workspaceId)
 
-      let patient
-      const { data: existingPatient } = await supabase
+      // 2. Find or Create Patient
+      let patientId = ''
+      const { data: existingPatient, error: pError } = await supabase
         .from('patients')
         .select('id')
         .eq('phone', from)
-        .eq('workspace_id', workspace.id)
+        .eq('workspace_id', workspaceId)
         .single()
 
-      if (existingPatient) {
-        patient = existingPatient
-      } else {
-        const { data: newPatient } = await supabase
+      if (pError || !existingPatient) {
+        console.log(`👤 Creating new patient for ${from}`)
+        const { data: newPatient, error: createPError } = await supabase
           .from('patients')
           .insert({
-            workspace_id: workspace.id,
+            workspace_id: workspaceId,
             name: `WhatsApp User ${from.slice(-4)}`,
             phone: from,
             source: 'whatsapp',
           })
           .select('id')
           .single()
-        patient = newPatient
+        
+        if (createPError) {
+          console.error('❌ Failed to create patient:', createPError.message)
+          continue
+        }
+        patientId = newPatient.id
+      } else {
+        patientId = existingPatient.id
       }
+      console.log('👤 Patient ID:', patientId)
 
-      if (!patient) continue
-
-      let conversation
-      const { data: existingConv } = await supabase
+      // 3. Find or Create Conversation
+      let conversationId = ''
+      const { data: existingConv, error: cError } = await supabase
         .from('conversations')
         .select('id')
-        .eq('patient_id', patient.id)
+        .eq('patient_id', patientId)
         .eq('channel', 'whatsapp')
         .eq('status', 'active')
         .single()
 
-      if (existingConv) {
-        conversation = existingConv
-      } else {
-        const { data: newConv } = await supabase
+      if (cError || !existingConv) {
+        console.log(`🗪 Creating new conversation for patient ${patientId}`)
+        const { data: newConv, error: createCError } = await supabase
           .from('conversations')
           .insert({
-            workspace_id: workspace.id,
-            patient_id: patient.id,
+            workspace_id: workspaceId,
+            patient_id: patientId,
             channel: 'whatsapp',
             status: 'active',
             last_message: messageText,
@@ -132,43 +152,67 @@ export async function POST(request: NextRequest) {
           })
           .select('id')
           .single()
-        conversation = newConv
+
+        if (createCError) {
+          console.error('❌ Failed to create conversation:', createCError.message)
+          continue
+        }
+        conversationId = newConv.id
+      } else {
+        conversationId = existingConv.id
       }
+      console.log('🗪 Conversation ID:', conversationId)
 
-      if (!conversation) continue
-
-      await supabase.from('messages').insert({
-        conversation_id: conversation.id,
+      // 4. Save User Message
+      const { error: msgInsertError } = await supabase.from('messages').insert({
+        conversation_id: conversationId,
         role: 'user',
         content: messageText,
         channel: 'whatsapp',
         timestamp: new Date(parseInt(msgTimestamp) * 1000).toISOString(),
       })
 
+      if (msgInsertError) {
+        console.error('❌ Failed to save user message:', msgInsertError.message)
+      }
+
       await supabase.from('conversations').update({
         last_message: messageText,
         last_message_at: new Date(parseInt(msgTimestamp) * 1000).toISOString(),
-      }).eq('id', conversation.id)
+      }).eq('id', conversationId)
 
-      // --- NEW: AI Automated Response ---
+      // 5. AI Automated Response
+      console.log('🤖 Starting AI response flow...')
       try {
-        const { data: waConfig } = await supabase
+        const { data: waConfig, error: configError } = await supabase
           .from('whatsapp_config')
           .select('*')
-          .eq('workspace_id', workspace.id)
+          .eq('workspace_id', workspaceId)
           .single()
 
-        if (waConfig?.enabled && waConfig.access_token_encrypted) {
-          // 1. Get AI Response
-          const { config, pastMessages } = await getAIContext(workspace.id, conversation.id)
-          const reply = await generateAIResponse(config, pastMessages, messageText, "\n\n(Context: You are replying via WhatsApp. Keep it concise.)")
+        if (configError) {
+          console.error('❌ Failed to fetch WhatsApp config:', configError.message)
+        }
+
+        if (waConfig?.enabled && (waConfig.access_token_encrypted || waConfig.access_token)) {
+          console.log('🤖 AI is enabled for this workspace')
+          
+          // Decrypt Meta access token
+          const rawToken = decrypt(waConfig.access_token_encrypted || waConfig.access_token)
+          
+          // Get AI Response
+          const { config: aiConfig, pastMessages } = await getAIContext(workspaceId, conversationId)
+          const reply = await generateAIResponse(aiConfig, pastMessages, messageText, "\n\n(Context: You are replying via WhatsApp. Keep it concise.)")
 
           if (reply) {
-            // 2. Send via WhatsApp API
+            console.log(`🤖 AI Reply: "${reply}"`)
+            
+            // Send via WhatsApp API
+            console.log('📤 Sending reply to Meta API...')
             const waRes = await fetch(`https://graph.facebook.com/v17.0/${waConfig.phone_number_id}/messages`, {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${waConfig.access_token_encrypted}`,
+                'Authorization': `Bearer ${rawToken}`,
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
@@ -179,13 +223,11 @@ export async function POST(request: NextRequest) {
               })
             })
 
-            const waData = await waRes.json()
-            console.log('WhatsApp Send Response:', JSON.stringify(waData))
-
             if (waRes.ok) {
-              // 3. Save AI message to DB
+              console.log('✅ Reply sent successfully via Meta')
+              // Save AI message to DB
               await supabase.from('messages').insert({
-                conversation_id: conversation.id,
+                conversation_id: conversationId,
                 role: 'assistant',
                 content: reply,
                 channel: 'whatsapp',
@@ -195,19 +237,25 @@ export async function POST(request: NextRequest) {
               await supabase.from('conversations').update({
                 last_message: reply,
                 last_message_at: new Date().toISOString()
-              }).eq('id', conversation.id)
+              }).eq('id', conversationId)
+            } else {
+              const waData = await waRes.json()
+              console.error('❌ Meta API Error:', JSON.stringify(waData, null, 2))
             }
+          } else {
+            console.log('ℹ️ AI returned an empty reply')
           }
+        } else {
+          console.log('ℹ️ WhatsApp AI or token not configured/enabled')
         }
-      } catch (aiErr) {
-        console.error('AI Automated Response Error:', aiErr)
+      } catch (aiErr: any) {
+        console.error('❌ AI Automated Response Error:', aiErr.message)
       }
-      // --- END AI Automated Response ---
     }
 
     return new NextResponse('OK', { status: 200 })
-  } catch (error) {
-    console.error('Webhook error:', error)
+  } catch (error: any) {
+    console.error('❌ Global Webhook Error:', error.message)
     return new NextResponse('Internal Server Error', { status: 500 })
   }
 }

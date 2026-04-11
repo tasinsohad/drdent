@@ -1,9 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
+import { supabaseServer } from '@/lib/supabase-server'
+import { decrypt } from '@/lib/encryption'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Use the server-side client for AI context fetching
+const supabase = supabaseServer
 
 export async function getAIContext(workspaceId: string, conversationId: string) {
   // Fetch AI Config
@@ -36,7 +35,7 @@ export async function generateAIResponse(
 ) {
   const provider = config.provider || 'openai'
   const model = config.model || (provider === 'google' ? 'gemini-1.5-flash' : 'gpt-4o')
-  const apiKey = config.api_key_encrypted
+  const apiKey = decrypt(config.api_key_encrypted)
   const baseSystemPrompt = config.system_prompt || 'You are a helpful dental receptionist.'
   const systemPrompt = baseSystemPrompt + systemPromptAddition
 
