@@ -1123,39 +1123,24 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const fetchModels = async (provider: string, key: string) => {
     if (!key) return
     setLoadingModels(true)
+    setApiKeyError(null)
     try {
-      let models: { id: string, name: string }[] = []
-      if (provider === 'openai') {
-        const res = await fetch('https://api.openai.com/v1/models', {
-          headers: { 'Authorization': `Bearer ${key}` }
-        })
-        if (res.ok) {
-          const data = await res.json()
-          models = data.data
-            .filter((m: any) => m.id.includes('gpt'))
-            .map((m: any) => ({ id: m.id, name: m.id.toUpperCase() }))
-        }
-      } else if (provider === 'google') {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`)
-        if (res.ok) {
-          const data = await res.json()
-          models = data.models
-            .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
-            .map((m: any) => ({ id: m.name.replace('models/', ''), name: m.displayName }))
-        }
-      } else if (provider === 'openrouter') {
-        const res = await fetch('https://openrouter.ai/api/v1/models')
-        if (res.ok) {
-          const data = await res.json()
-          models = data.data.map((m: any) => ({ id: m.id, name: m.name || m.id }))
-        }
-      }
+      const res = await fetch('/api/ai/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, apiKey: key })
+      })
       
-      if (models.length > 0) {
-        setAvailableModels(models)
+      const data = await res.json()
+      
+      if (data.success && data.models?.length > 0) {
+        setAvailableModels(data.models)
+      } else {
+        setApiKeyError(data.error || 'Could not fetch models for this key')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch models:', err)
+      setApiKeyError('Connection error. Please try again.')
     } finally {
       setLoadingModels(false)
     }
@@ -1197,19 +1182,25 @@ ON CONFLICT (workspace_id) DO NOTHING;`
     setApiKeyError(null)
     
     try {
-      // 1. Get/create workspace id first
-      const { data: wsData, error: wsError } = await supabase
+      // 1. Ensure workspace exists
+      let { data: wsData, error: wsError } = await supabase
         .from('workspaces')
         .select('id')
         .limit(1)
         .single();
       
       let workspaceId = wsData?.id;
+      
       if (!workspaceId) {
-        // Fallback or error logging
-        console.warn("No workspace found, skipping save.");
-        setSaving(null);
-        return;
+        // Create default workspace if missing
+        const { data: newWs, error: createWsError } = await supabase
+          .from('workspaces')
+          .insert({ name: 'Default Practice', slug: 'default-practice-' + Math.random().toString(36).substring(7) })
+          .select('id')
+          .single()
+        
+        if (createWsError) throw createWsError
+        workspaceId = newWs.id
       }
 
       const { error } = await supabase.from('ai_configs').upsert({
@@ -1225,11 +1216,20 @@ ON CONFLICT (workspace_id) DO NOTHING;`
         supported_languages: supportedLanguages.split(',').map(s => s.trim()).filter(Boolean)
       }, { onConflict: 'workspace_id' })
 
-      if (error) throw error
+      if (error) {
+        setApiKeyError("Database error while saving. Please ensure tables are set up.")
+        throw error
+      }
+      
+      toast?.({
+        title: "Settings Saved",
+        description: "Your AI configuration has been updated.",
+      })
     } catch (err: any) {
       console.error('Failed to save AI config:', err)
+      setApiKeyError(err.message || 'Failed to save configuration')
     }
-    setTimeout(() => setSaving(null), 1000); // simulate delay for feedback
+    setTimeout(() => setSaving(null), 500);
   }
 
   const handleAdvancedTestAI = async () => {
@@ -1624,15 +1624,23 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                 <Switch checked={offHoursReply} onCheckedChange={setOffHoursReply} />
               </div>
 
-              <Button
-                className="bg-blue-600 hover:bg-blue-700"
-                onClick={handleSaveAIConfig}
-                disabled={saving === 'ai'}
-              >
-                {saving === 'ai' ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
-                ) : "Save Configuration"}
-              </Button>
+              <div className="flex items-center gap-4">
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={handleSaveAIConfig}
+                  disabled={saving === 'ai'}
+                >
+                  {saving === 'ai' ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
+                  ) : "Save Configuration"}
+                </Button>
+
+                {apiKey && (
+                  <Badge variant={availableModels.length > 0 ? "outline" : "outline"} className={availableModels.length > 0 ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-50 text-amber-700 border-amber-200"}>
+                    {availableModels.length > 0 ? "API Validated" : "Awaiting Validation"}
+                  </Badge>
+                )}
+              </div>
 
               {apiKey && (
                 <div className="mt-8 border rounded-2xl overflow-hidden shadow-sm bg-muted/30">

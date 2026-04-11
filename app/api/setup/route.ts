@@ -171,30 +171,29 @@ CREATE TABLE IF NOT EXISTS followup_configs (
 
 -- Insert default workspace
 INSERT INTO workspaces (id, name, slug)
-VALUES (uuid_generate_v4(), 'Default Dental Practice', 'default-practice')
+VALUES ('00000000-0000-0000-0000-000000000000', 'Default Dental Practice', 'default-practice')
 ON CONFLICT (slug) DO NOTHING;
 
--- Add unique constraint to ai_configs if not exists
-ALTER TABLE ai_configs ADD CONSTRAINT ai_configs_workspace_id_key UNIQUE (workspace_id);
-
--- Add unique constraint to widget_config if not exists  
-ALTER TABLE widget_config ADD CONSTRAINT widget_config_workspace_id_key UNIQUE (workspace_id);
+-- Policies to allow initial setup without complex auth
+CREATE POLICY "Allow all on workspaces" ON workspaces FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on ai_configs" ON ai_configs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on patients" ON patients FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on conversations" ON conversations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on messages" ON messages FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on popup_configs" ON widget_config FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on followup_configs" ON followup_configs FOR ALL USING (true) WITH CHECK (true);
 
 -- Insert default configurations for the workspace
 INSERT INTO ai_configs (workspace_id)
-SELECT id FROM workspaces LIMIT 1
+VALUES ('00000000-0000-0000-0000-000000000000')
 ON CONFLICT (workspace_id) DO NOTHING;
 
 INSERT INTO widget_config (workspace_id)
-SELECT id FROM workspaces LIMIT 1
-ON CONFLICT (workspace_id) DO NOTHING;
-
-INSERT INTO whatsapp_config (workspace_id)
-SELECT id FROM workspaces LIMIT 1
+VALUES ('00000000-0000-0000-0000-000000000000')
 ON CONFLICT (workspace_id) DO NOTHING;
 
 INSERT INTO followup_configs (workspace_id)
-SELECT id FROM workspaces LIMIT 1
+VALUES ('00000000-0000-0000-0000-000000000000')
 ON CONFLICT (workspace_id) DO NOTHING;`
 
     return NextResponse.json({ 
