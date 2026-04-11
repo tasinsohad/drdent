@@ -1,12 +1,11 @@
 import type { Metadata } from "next"
-import { Inter, Manrope } from "next/font/google"
+import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { Toaster } from "@/components/ui/toaster"
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
-const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope" })
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://drdent.ai"),
@@ -76,7 +75,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${manrope.variable} font-sans`}>
+      <body className={inter.className}>
         <ErrorBoundary>
           <ThemeProvider
             attribute="class"
