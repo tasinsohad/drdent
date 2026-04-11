@@ -11,7 +11,7 @@ async function getWorkspaceId() {
   return data?.id
 }
 
-async function ensureWorkspace() {
+export async function ensureWorkspace() {
   const existing = await getWorkspaceId()
   if (existing) return existing
   
@@ -25,7 +25,23 @@ async function ensureWorkspace() {
     .single()
   
   if (error) throw new Error(`Failed to create workspace: ${error.message}`)
+  
+  // Also ensure default configs
+  await supabase.from('ai_configs').upsert({ workspace_id: data.id }, { onConflict: 'workspace_id' })
+  await supabase.from('widget_config').upsert({ workspace_id: data.id }, { onConflict: 'workspace_id' })
+  await supabase.from('followup_configs').upsert({ workspace_id: data.id }, { onConflict: 'workspace_id' })
+  
   return data.id
+}
+
+export async function initializeSaaS() {
+  try {
+    await ensureWorkspace()
+    return { success: true }
+  } catch (error: any) {
+    console.error('Initialization error:', error.message)
+    return { success: false, error: error.message }
+  }
 }
 
 export async function getWorkspace() {

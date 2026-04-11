@@ -68,11 +68,15 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+import { initializeSaaS } from "@/lib/db"
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Ensure database is initialized with workspace and default configs
+  await initializeSaaS()
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>

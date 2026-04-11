@@ -4,8 +4,18 @@ export async function POST() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+  const encryptionKey = process.env.ENCRYPTION_KEY
+  const whatsappToken = process.env.WHATSAPP_VERIFY_TOKEN
+
   if (!supabaseUrl || !supabaseKey) {
-    return NextResponse.json({ success: false, error: 'Missing Supabase credentials' }, { status: 500 })
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Missing Supabase credentials',
+      diagnostics: {
+        supabaseUrl: !!supabaseUrl,
+        supabaseKey: !!supabaseKey
+      }
+    }, { status: 500 })
   }
 
   try {
@@ -19,7 +29,16 @@ export async function POST() {
     })
 
     if (wsResponse.status === 200) {
-      return NextResponse.json({ success: true, message: 'Database already set up!' })
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Connected to Supabase successfully!',
+        diagnostics: {
+          encryptionKeySet: !!encryptionKey,
+          encryptionKeyValid: (encryptionKey?.length || 0) >= 32,
+          whatsappTokenSet: !!whatsappToken,
+          databaseInitialized: true
+        }
+      })
     }
 
     // Tables don't exist - return the SQL to run
