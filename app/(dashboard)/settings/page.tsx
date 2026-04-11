@@ -1276,12 +1276,17 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const handleSaveWidgetConfig = async () => {
     setSaving('widget')
     try {
-      const { data: wsData } = await supabase.from('workspaces').select('id').limit(1).single();
+      let { data: wsData } = await supabase.from('workspaces').select('id').limit(1).single();
       let workspaceId = wsData?.id;
+      
       if (!workspaceId) {
-        console.warn("No workspace found.");
-        setSaving(null);
-        return;
+        const { data: newWs, error: createWsError } = await supabase
+          .from('workspaces')
+          .insert({ name: 'Default Practice', slug: 'default-practice-' + Math.random().toString(36).substring(7) })
+          .select('id')
+          .single()
+        if (createWsError) throw createWsError
+        workspaceId = newWs.id
       }
 
       const { error } = await supabase.from('widget_config').upsert({
@@ -1293,21 +1298,36 @@ ON CONFLICT (workspace_id) DO NOTHING;`
       }, { onConflict: 'workspace_id' })
 
       if (error) throw error
+      
+      toast?.({
+        title: "Widget Saved",
+        description: "Your chat widget settings have been updated.",
+      })
     } catch (err: any) {
       console.error('Failed to save widget config:', err)
+      toast?.({
+        title: "Save Failed",
+        description: err.message || "Failed to save widget settings.",
+        variant: "destructive"
+      })
     }
-    setTimeout(() => setSaving(null), 1000); // simulate delay for feedback
+    setTimeout(() => setSaving(null), 500);
   }
 
   const handleSaveWhatsAppConfig = async () => {
     setSaving('whatsapp')
     try {
-      const { data: wsData } = await supabase.from('workspaces').select('id').limit(1).single();
+      let { data: wsData } = await supabase.from('workspaces').select('id').limit(1).single();
       let workspaceId = wsData?.id;
+
       if (!workspaceId) {
-        console.warn("No workspace found.");
-        setSaving(null);
-        return;
+        const { data: newWs, error: createWsError } = await supabase
+          .from('workspaces')
+          .insert({ name: 'Default Practice', slug: 'default-practice-' + Math.random().toString(36).substring(7) })
+          .select('id')
+          .single()
+        if (createWsError) throw createWsError
+        workspaceId = newWs.id
       }
 
       const { error } = await supabase.from('whatsapp_config').upsert({
@@ -1320,10 +1340,20 @@ ON CONFLICT (workspace_id) DO NOTHING;`
       }, { onConflict: 'workspace_id' })
 
       if (error) throw error
+
+      toast?.({
+        title: "WhatsApp Settings Saved",
+        description: "Your WhatsApp Business API configuration is updated.",
+      })
     } catch (err: any) {
       console.error('Failed to save WhatsApp config:', err)
+      toast?.({
+        title: "Save Failed",
+        description: err.message || "Failed to save WhatsApp credentials.",
+        variant: "destructive"
+      })
     }
-    setTimeout(() => setSaving(null), 1000);
+    setTimeout(() => setSaving(null), 500);
   }
 
   const copyEmbedCode = () => {

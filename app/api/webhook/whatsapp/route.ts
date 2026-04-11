@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase-client'
+import { getAIContext, generateAIResponse } from '@/lib/ai'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -115,6 +116,60 @@ export async function POST(request: NextRequest) {
         last_message: messageText,
         last_message_at: new Date(parseInt(msgTimestamp) * 1000).toISOString(),
       }).eq('id', conversation.id)
+
+      // --- NEW: AI Automated Response ---
+      try {
+        const { data: waConfig } = await supabase
+          .from('whatsapp_config')
+          .select('*')
+          .eq('workspace_id', workspace.id)
+          .single()
+
+        if (waConfig?.enabled && waConfig.access_token_encrypted) {
+          // 1. Get AI Response
+          const { config, pastMessages } = await getAIContext(workspace.id, conversation.id)
+          const reply = await generateAIResponse(config, pastMessages, messageText, "\n\n(Context: You are replying via WhatsApp. Keep it concise.)")
+
+          if (reply) {
+            // 2. Send via WhatsApp API
+            const waRes = await fetch(`https://graph.facebook.com/v17.0/${waConfig.phone_number_id}/messages`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${waConfig.access_token_encrypted}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                messaging_product: "whatsapp",
+                to: from,
+                type: "text",
+                text: { body: reply }
+              })
+            })
+
+            const waData = await waRes.json()
+            console.log('WhatsApp Send Response:', JSON.stringify(waData))
+
+            if (waRes.ok) {
+              // 3. Save AI message to DB
+              await supabase.from('messages').insert({
+                conversation_id: conversation.id,
+                role: 'assistant',
+                content: reply,
+                channel: 'whatsapp',
+                timestamp: new Date().toISOString()
+              })
+
+              await supabase.from('conversations').update({
+                last_message: reply,
+                last_message_at: new Date().toISOString()
+              }).eq('id', conversation.id)
+            }
+          }
+        }
+      } catch (aiErr) {
+        console.error('AI Automated Response Error:', aiErr)
+      }
+      // --- END AI Automated Response ---
     }
 
     return new NextResponse('OK', { status: 200 })
