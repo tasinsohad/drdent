@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/toaster"
 import { Search, Plus, Phone, Mail, Tag, UserPlus, Loader2, Edit, Trash2, GripVertical, AlertTriangle } from "lucide-react"
 import { getPatients, createPatient, updatePatient, deletePatient, updatePatientStatus } from "@/lib/db"
 import {
@@ -179,7 +179,7 @@ export default function PatientsKanbanPage() {
       setPatients(normalizedData)
     } catch (err) {
       console.error('Failed to load patients:', err)
-      toast({ title: "Error", description: "Failed to load patients", variant: "destructive" })
+      toast({ title: "Error", description: "Failed to load patients", variant: "error" })
     }
     setLoading(false)
   }
@@ -258,7 +258,7 @@ export default function PatientsKanbanPage() {
     try {
       await updatePatientStatus(activePatient.id, currentStatus)
     } catch (err: any) {
-      toast({ title: "Error saving position", description: err.message, variant: "destructive" })
+      toast({ title: "Error saving position", description: err.message, variant: "error" })
       loadPatients() // Revert on failure
     }
   }
@@ -294,7 +294,7 @@ export default function PatientsKanbanPage() {
       setIsFormModalOpen(false)
       loadPatients()
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to save patient", variant: "destructive" })
+      toast({ title: "Error", description: err.message || "Failed to save patient", variant: "error" })
     }
     setIsSubmitting(false)
   }
@@ -309,7 +309,7 @@ export default function PatientsKanbanPage() {
       setDeletingPatient(null)
       loadPatients()
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to delete patient", variant: "destructive" })
+      toast({ title: "Error", description: err.message || "Failed to delete patient", variant: "error" })
     }
     setIsSubmitting(false)
   }
