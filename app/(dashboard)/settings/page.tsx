@@ -381,7 +381,6 @@ export default function SettingsPage() {
   const { supabaseConnected, supabaseError, checkSupabaseConnection } = useAppStore()
 
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
-  const [apiKeyValidating, setApiKeyValidating] = useState(false)
   const [checking, setChecking] = useState(false)
   const [migrating, setMigrating] = useState(false)
   const [migrationResult, setMigrationResult] = useState<{success: boolean; message: string; sql?: string} | null>(null)
@@ -1000,8 +999,13 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const [offHoursReply, setOffHoursReply] = useState(true)
   const [supportedLanguages, setSupportedLanguages] = useState("English")
 
-  const [availableModels, setAvailableModels] = useState<{id: string, name: string}[]>([])
-  const [isFetchingModels, setIsFetchingModels] = useState(false)
+  const [availableModels, setAvailableModels] = useState<{id: string, name: string}[]>([
+    { id: "gpt-4o", name: "GPT-4o" },
+    { id: "gpt-4o-mini", name: "GPT-4o Mini" },
+    { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
+    { id: "gpt-4", name: "GPT-4" },
+    { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
+  ])
 
   const [testMessage, setTestMessage] = useState("")
   const [testingAI, setTestingAI] = useState(false)
@@ -1115,100 +1119,30 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   }, [])
 
   useEffect(() => {
-    if (!apiKey) {
-      if (aiProvider !== "openai") {
-        setAvailableModels([
-          { id: "gemini-pro", name: "Gemini 1.5 Pro" },
-          { id: "gemini-flash", name: "Gemini 1.5 Flash" }
-        ])
-      } else {
-        setAvailableModels([]) 
-      }
-      setApiKeyError(null)
-      return
+    if (aiProvider === "google") {
+      setAvailableModels([
+        { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro" },
+        { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash" },
+        { id: "gemini-pro", name: "Gemini Pro" },
+      ])
+    } else if (aiProvider === "openrouter") {
+      setAvailableModels([
+        { id: "openai/gpt-4o", name: "GPT-4o (via OpenRouter)" },
+        { id: "openai/gpt-4o-mini", name: "GPT-4o Mini (via OpenRouter)" },
+        { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
+        { id: "meta-llama/llama-3.1-405b-instruct", name: "Llama 3.1 405B" },
+      ])
+    } else {
+      setAvailableModels([
+        { id: "gpt-4o", name: "GPT-4o" },
+        { id: "gpt-4o-mini", name: "GPT-4o Mini" },
+        { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
+        { id: "gpt-4", name: "GPT-4" },
+        { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
+      ])
     }
-
-    const fetchModels = async () => {
-      setIsFetchingModels(true)
-      setApiKeyError(null)
-      try {
-        let res: Response;
-        let models: { id: string; name: string }[] = [];
-
-        if (aiProvider === "openai") {
-          res = await fetch("https://api.openai.com/v1/models", {
-            headers: {
-              "Authorization": `Bearer ${apiKey}`
-            }
-          })
-          
-          if (res.ok) {
-            const data = await res.json()
-            const chatModels = data.data
-              .filter((m: any) => m.id.startsWith("gpt-") || m.id.startsWith("o1") || m.id.startsWith("o3"))
-              .map((m: any) => ({ id: m.id, name: m.id }))
-              .sort((a: any, b: any) => a.id.localeCompare(b.id))
-            
-            models = chatModels
-          } else if (res.status === 401) {
-            setApiKeyError("Invalid API key - please check and try again")
-            setAvailableModels([])
-          } else {
-            setApiKeyError("Failed to fetch models - please try again")
-            setAvailableModels([])
-          }
-        } else if (aiProvider === "google") {
-          res = await fetch("https://generativelanguage.googleapis.com/v1/models?key=" + apiKey)
-          
-          if (res.ok) {
-            const data = await res.json()
-            models = (data.models || [])
-              .filter((m: any) => m.name?.includes("gemini"))
-              .map((m: any) => ({ 
-                id: m.name.split('/').pop() || m.name, 
-                name: m.displayName || m.name 
-              }))
-          } else if (res.status === 401 || res.status === 403) {
-            setApiKeyError("Invalid API key - please check and try again")
-            setAvailableModels([])
-          } else {
-            setApiKeyError("Failed to fetch models - please try again")
-            setAvailableModels([])
-          }
-        } else if (aiProvider === "openrouter") {
-          res = await fetch("https://openrouter.ai/api/v1/models", {
-            headers: {
-              "Authorization": `Bearer ${apiKey}`
-            }
-          })
-          
-          if (res.ok) {
-            const data = await res.json()
-            models = (data.data || [])
-              .map((m: any) => ({ 
-                id: m.id, 
-                name: m.name || m.id 
-              }))
-          } else {
-            setApiKeyError("Invalid API key - please check and try again")
-            setAvailableModels([])
-          }
-        } else {
-          setAvailableModels([])
-        }
-        
-        setAvailableModels(models)
-      } catch (err) {
-        console.error(err)
-        setApiKeyError("Failed to validate API key - please check your connection")
-        setAvailableModels([])
-      }
-      setIsFetchingModels(false)
-    }
-
-    const timeout = setTimeout(fetchModels, 800)
-    return () => clearTimeout(timeout)
-  }, [apiKey, aiProvider])
+    setApiKeyError(null)
+  }, [aiProvider])
 
   const handleRunMigration = async () => {
     setMigrating(true)
@@ -1237,28 +1171,6 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const handleSaveAIConfig = async () => {
     setSaving('ai')
     setApiKeyError(null)
-    
-    // Validate API key before saving
-    if (apiKey && aiProvider === 'openai') {
-      setApiKeyValidating(true)
-      try {
-        const res = await fetch("https://api.openai.com/v1/models", {
-          headers: { "Authorization": `Bearer ${apiKey}` }
-        })
-        if (!res.ok) {
-          setApiKeyError("Invalid API key - please check and try again")
-          setSaving(null)
-          setApiKeyValidating(false)
-          return
-        }
-      } catch (err) {
-        setApiKeyError("Failed to validate API key")
-        setSaving(null)
-        setApiKeyValidating(false)
-        return
-      }
-      setApiKeyValidating(false)
-    }
     
     try {
       // 1. Get/create workspace id first
@@ -1616,10 +1528,10 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Model {isFetchingModels && <Loader2 className="h-3 w-3 inline animate-spin ml-2" />}</Label>
+                  <Label>Model</Label>
                   <Select value={aiModel} onValueChange={setAiModel} disabled={availableModels.length === 0}>
                     <SelectTrigger>
-                      <SelectValue placeholder={!apiKey && aiProvider === "openai" ? "Enter API Key first" : "Select a model..."} />
+                      <SelectValue placeholder="Select a model..." />
                     </SelectTrigger>
                     <SelectContent>
                       {availableModels.map((m) => (
@@ -1627,9 +1539,6 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                       ))}
                     </SelectContent>
                   </Select>
-                  {!apiKey && aiProvider === "openai" && (
-                    <p className="text-xs text-amber-600 dark:text-amber-500">Please enter an API key to load models.</p>
-                  )}
                 </div>
               </div>
 
@@ -1691,12 +1600,10 @@ ON CONFLICT (workspace_id) DO NOTHING;`
               <Button
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleSaveAIConfig}
-                disabled={saving === 'ai' || apiKeyValidating}
+                disabled={saving === 'ai'}
               >
                 {saving === 'ai' ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
-                ) : apiKeyValidating ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Validating...</>
                 ) : "Save Configuration"}
               </Button>
 
