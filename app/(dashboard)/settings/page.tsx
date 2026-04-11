@@ -1244,62 +1244,25 @@ ON CONFLICT (workspace_id) DO NOTHING;`
     setTestingAI(true)
     
     try {
+      const res = await fetch('/api/ai/proxy-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: aiProvider,
+          apiKey: apiKey,
+          model: aiModel,
+          messages: [...chatHistory, newUserMsg],
+          systemPrompt: systemPrompt
+        })
+      })
+
+      const data = await res.json()
       let reply = ""
 
-      if (aiProvider === 'openai' || aiProvider === 'openrouter' || aiProvider === 'custom') {
-        const baseUrl = aiProvider === 'openai' ? 'https://api.openai.com/v1' : 
-                        aiProvider === 'openrouter' ? 'https://openrouter.ai/api/v1' : '';
-        
-        const response = await fetch(`${baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: aiModel,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...chatHistory,
-              newUserMsg
-            ],
-            max_tokens: 500,
-            temperature: 0.7
-          })
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          reply = data.choices?.[0]?.message?.content || "No response generated"
-        } else {
-          const errorData = await response.json()
-          reply = `Error: ${errorData.error?.message || errorData.message || 'Failed to get response'}`
-        }
-      } else if (aiProvider === 'google') {
-        const geminiHistory = chatHistory.map(msg => ({
-          role: msg.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: msg.content }]
-        }))
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${aiModel || 'gemini-1.5-flash'}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              ...geminiHistory,
-              { role: 'user', parts: [{ text: userMsg }] }
-            ],
-            systemInstruction: { parts: [{ text: systemPrompt }] }
-          })
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated"
-        } else {
-          const errorData = await response.json()
-          reply = `Error: ${errorData.error?.message || 'Failed to get response'}`
-        }
+      if (data.success) {
+        reply = data.reply || "No response generated"
+      } else {
+        reply = `Error: ${data.error || 'Failed to get response'}`
       }
       
       setChatHistory(prev => [...prev, { role: 'assistant', content: reply }])
