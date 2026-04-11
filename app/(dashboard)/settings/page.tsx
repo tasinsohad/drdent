@@ -1010,6 +1010,8 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const [testMessage, setTestMessage] = useState("")
   const [testingAI, setTestingAI] = useState(false)
   const [testResponse, setTestResponse] = useState("")
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'assistant', content: string}[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
 
   const [primaryColor, setPrimaryColor] = useState("#0ea5e9")
   const [widgetPosition, setWidgetPosition] = useState("bottom-right")
@@ -1118,31 +1120,53 @@ ON CONFLICT (workspace_id) DO NOTHING;`
     loadConfigs()
   }, [])
 
+  const fetchModels = async (provider: string, key: string) => {
+    if (!key) return
+    setLoadingModels(true)
+    try {
+      let models: { id: string, name: string }[] = []
+      if (provider === 'openai') {
+        const res = await fetch('https://api.openai.com/v1/models', {
+          headers: { 'Authorization': `Bearer ${key}` }
+        })
+        if (res.ok) {
+          const data = await res.json()
+          models = data.data
+            .filter((m: any) => m.id.includes('gpt'))
+            .map((m: any) => ({ id: m.id, name: m.id.toUpperCase() }))
+        }
+      } else if (provider === 'google') {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`)
+        if (res.ok) {
+          const data = await res.json()
+          models = data.models
+            .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
+            .map((m: any) => ({ id: m.name.replace('models/', ''), name: m.displayName }))
+        }
+      } else if (provider === 'openrouter') {
+        const res = await fetch('https://openrouter.ai/api/v1/models')
+        if (res.ok) {
+          const data = await res.json()
+          models = data.data.map((m: any) => ({ id: m.id, name: m.name || m.id }))
+        }
+      }
+      
+      if (models.length > 0) {
+        setAvailableModels(models)
+      }
+    } catch (err) {
+      console.error('Failed to fetch models:', err)
+    } finally {
+      setLoadingModels(false)
+    }
+  }
+
   useEffect(() => {
-    if (aiProvider === "google") {
-      setAvailableModels([
-        { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro" },
-        { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash" },
-        { id: "gemini-pro", name: "Gemini Pro" },
-      ])
-    } else if (aiProvider === "openrouter") {
-      setAvailableModels([
-        { id: "openai/gpt-4o", name: "GPT-4o (via OpenRouter)" },
-        { id: "openai/gpt-4o-mini", name: "GPT-4o Mini (via OpenRouter)" },
-        { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
-        { id: "meta-llama/llama-3.1-405b-instruct", name: "Llama 3.1 405B" },
-      ])
-    } else {
-      setAvailableModels([
-        { id: "gpt-4o", name: "GPT-4o" },
-        { id: "gpt-4o-mini", name: "GPT-4o Mini" },
-        { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
-        { id: "gpt-4", name: "GPT-4" },
-        { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
-      ])
+    if (apiKey && aiProvider) {
+      fetchModels(aiProvider, apiKey)
     }
     setApiKeyError(null)
-  }, [aiProvider])
+  }, [aiProvider, apiKey])
 
   const handleRunMigration = async () => {
     setMigrating(true)
@@ -1208,49 +1232,34 @@ ON CONFLICT (workspace_id) DO NOTHING;`
     setTimeout(() => setSaving(null), 1000); // simulate delay for feedback
   }
 
-  const handleTestAI = async () => {
+  const handleAdvancedTestAI = async () => {
     if (!testMessage.trim() || !apiKey) return
     
+    const userMsg = testMessage.trim()
+    const newUserMsg = { role: 'user' as const, content: userMsg }
+    setChatHistory(prev => [...prev, newUserMsg])
+    setTestMessage("")
     setTestingAI(true)
-    setTestResponse("")
     
     try {
-      const { data: wsData } = await supabase.from('workspaces').select('id').limit(1).single()
-      const workspaceId = wsData?.id
-      
-      if (!workspaceId) {
-        setTestResponse("Error: No workspace found")
-        setTestingAI(false)
-        return
-      }
-
-      const { data: config } = await supabase
-        .from('ai_configs')
-        .select('*')
-        .eq('workspace_id', workspaceId)
-        .single()
-
-      if (!config || !config.api_key_encrypted) {
-        setTestResponse("Error: AI not configured. Please save your API key first.")
-        setTestingAI(false)
-        return
-      }
-
-      let response: Response
       let reply = ""
 
-      if (config.provider === 'openai' || config.provider === 'custom') {
-        response = await fetch(config.base_url || 'https://api.openai.com/v1/chat/completions', {
+      if (aiProvider === 'openai' || aiProvider === 'openrouter' || aiProvider === 'custom') {
+        const baseUrl = aiProvider === 'openai' ? 'https://api.openai.com/v1' : 
+                        aiProvider === 'openrouter' ? 'https://openrouter.ai/api/v1' : '';
+        
+        const response = await fetch(`${baseUrl}/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.api_key_encrypted}`
+            'Authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model: config.model,
+            model: aiModel,
             messages: [
-              { role: 'system', content: config.system_prompt },
-              { role: 'user', content: testMessage }
+              { role: 'system', content: systemPrompt },
+              ...chatHistory,
+              newUserMsg
             ],
             max_tokens: 500,
             temperature: 0.7
@@ -1262,15 +1271,23 @@ ON CONFLICT (workspace_id) DO NOTHING;`
           reply = data.choices?.[0]?.message?.content || "No response generated"
         } else {
           const errorData = await response.json()
-          reply = `Error: ${errorData.error?.message || 'Failed to get response'}`
+          reply = `Error: ${errorData.error?.message || errorData.message || 'Failed to get response'}`
         }
-      } else if (config.provider === 'google') {
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${config.model || 'gemini-1.5-flash'}:generateContent?key=${config.api_key_encrypted}`, {
+      } else if (aiProvider === 'google') {
+        const geminiHistory = chatHistory.map(msg => ({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
+        }))
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${aiModel || 'gemini-1.5-flash'}:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: testMessage }] }],
-            systemInstruction: { parts: [{ text: config.system_prompt }] }
+            contents: [
+              ...geminiHistory,
+              { role: 'user', parts: [{ text: userMsg }] }
+            ],
+            systemInstruction: { parts: [{ text: systemPrompt }] }
           })
         })
         
@@ -1281,13 +1298,11 @@ ON CONFLICT (workspace_id) DO NOTHING;`
           const errorData = await response.json()
           reply = `Error: ${errorData.error?.message || 'Failed to get response'}`
         }
-      } else {
-        reply = "Unsupported provider. Please use OpenAI or Google."
       }
       
-      setTestResponse(reply)
+      setChatHistory(prev => [...prev, { role: 'assistant', content: reply }])
     } catch (err: any) {
-      setTestResponse(`Error: ${err.message || 'Failed to test AI'}`)
+      setChatHistory(prev => [...prev, { role: 'assistant', content: `Error: ${err.message || 'Failed to test AI'}` }])
     }
     
     setTestingAI(false)
@@ -1528,10 +1543,22 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Model</Label>
-                  <Select value={aiModel} onValueChange={setAiModel} disabled={availableModels.length === 0}>
+                  <div className="flex items-center justify-between">
+                    <Label>Model</Label>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => fetchModels(aiProvider, apiKey)}
+                      disabled={loadingModels || !apiKey}
+                    >
+                      {loadingModels ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                      Reload
+                    </Button>
+                  </div>
+                  <Select value={aiModel} onValueChange={setAiModel} disabled={availableModels.length === 0 || loadingModels}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a model..." />
+                      <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model..."} />
                     </SelectTrigger>
                     <SelectContent>
                       {availableModels.map((m) => (
@@ -1608,37 +1635,68 @@ ON CONFLICT (workspace_id) DO NOTHING;`
               </Button>
 
               {apiKey && (
-                <div className="mt-6 border rounded-lg overflow-hidden">
-                  <div className="bg-muted px-4 py-3 border-b">
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      <Bot className="h-4 w-4" />
-                      Test AI Assistant
+                <div className="mt-8 border rounded-2xl overflow-hidden shadow-sm bg-muted/30">
+                  <div className="bg-white dark:bg-slate-900 px-4 py-3 border-b flex items-center justify-between">
+                    <h4 className="font-bold text-sm flex items-center gap-2">
+                      <Bot className="h-4 w-4 text-blue-500" />
+                      Test AI Chat
                     </h4>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 text-[10px]"
+                      onClick={() => { setChatHistory([]); setTestMessage(""); }}
+                    >
+                      Clear Chat
+                    </Button>
                   </div>
                   <div className="p-4 space-y-4">
-                    <p className="text-xs text-muted-foreground">
-                      Send a test message to verify your AI is working correctly.
-                    </p>
+                    <div className="max-h-[300px] overflow-y-auto space-y-3 mb-2 scrollbar-thin">
+                      {chatHistory.length === 0 && (
+                        <div className="text-center py-8">
+                          <p className="text-xs text-muted-foreground italic">Start a conversation to test your AI settings.</p>
+                        </div>
+                      )}
+                      {chatHistory.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] px-3 py-2 rounded-xl text-sm ${
+                            msg.role === 'user' 
+                              ? 'bg-blue-600 text-white rounded-tr-none' 
+                              : 'bg-white dark:bg-slate-800 border rounded-tl-none text-slate-900 dark:text-slate-100'
+                          }`}>
+                            {msg.content}
+                          </div>
+                        </div>
+                      ))}
+                      {testingAI && (
+                        <div className="flex justify-start">
+                          <div className="bg-white dark:bg-slate-800 border px-3 py-2 rounded-xl rounded-tl-none flex items-center gap-2">
+                            <span className="flex gap-1">
+                              <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
                     <div className="flex gap-2">
                       <Input
-                        placeholder="Type a test message..."
+                        placeholder="Say something to Dr. Dent..."
                         value={testMessage}
                         onChange={(e) => setTestMessage(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && !testingAI && testMessage.trim() && handleTestAI()}
+                        onKeyDown={(e) => e.key === 'Enter' && !testingAI && testMessage.trim() && handleAdvancedTestAI()}
+                        className="h-10 rounded-xl"
                       />
                       <Button
-                        onClick={handleTestAI}
+                        onClick={handleAdvancedTestAI}
                         disabled={testingAI || !testMessage.trim()}
+                        className="h-10 rounded-xl bg-blue-600 w-12 p-0"
                       >
-                        {testingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
+                        {testingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                       </Button>
                     </div>
-                    {testResponse && (
-                      <div className="bg-muted/50 rounded-lg p-4">
-                        <p className="text-xs font-medium text-muted-foreground mb-2">AI Response:</p>
-                        <p className="text-sm">{testResponse}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}

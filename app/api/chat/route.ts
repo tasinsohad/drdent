@@ -325,18 +325,42 @@ export async function POST(request: Request) {
         confidence = 0.2
       }
     } else if (config.provider === 'google') {
+      // Format history for Gemini (roles: user, model)
+      const geminiHistory = pastMessages 
+        ? pastMessages.reverse().map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }]
+          }))
+        : []
+
+      const geminiBody = {
+        contents: [
+          ...geminiHistory,
+          { role: 'user', parts: [{ text: message }] }
+        ],
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
+        generationConfig: {
+          maxOutputTokens: 300,
+          temperature: 0.7
+        }
+      }
+
       const geminiRes = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: userMessage }] }]
-        })
+        body: JSON.stringify(geminiBody)
       })
 
       if (geminiRes.ok) {
         const data = await geminiRes.json()
         reply = data.candidates?.[0]?.content?.parts?.[0]?.text || reply
         confidence = calculateConfidenceScore(reply, usedKnowledgeBase, intentMatch?.matchedIntent?.name || null)
+      } else {
+        const err = await geminiRes.text()
+        console.error("Gemini Error:", err)
+        confidence = 0.2
       }
     }
 
