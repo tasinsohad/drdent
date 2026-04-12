@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer as supabase } from '@/lib/supabase-server'
 import { getAIContext, generateAIResponse } from '@/lib/ai'
 import { decrypt } from '@/lib/encryption'
-import { ensureWorkspace } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,7 +89,17 @@ export async function POST(request: NextRequest) {
 
       if (wsError || !workspace) {
         console.log('🛠️ No workspace found, auto-initializing...')
-        workspaceId = await ensureWorkspace()
+        const { data: newW } = await supabase.from('workspaces').insert({
+          name: 'My Practice',
+          slug: `practice-${Date.now()}`
+        }).select('id').single()
+        
+        workspaceId = newW?.id || ''
+        if (workspaceId) {
+          await supabase.from('ai_configs').upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id' })
+          await supabase.from('widget_config').upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id' })
+          await supabase.from('followup_configs').upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id' })
+        }
       } else {
         workspaceId = workspace.id
       }
@@ -183,6 +192,9 @@ export async function POST(request: NextRequest) {
 
       // 5. AI Automated Response
       console.log('🤖 Starting AI response flow...')
+      let reply = null
+      let replySource = 'none'
+      
       try {
         const { data: waConfig, error: configError } = await supabase
           .from('whatsapp_config')
@@ -195,19 +207,56 @@ export async function POST(request: NextRequest) {
         }
 
         if (waConfig?.enabled && (waConfig.access_token_encrypted || waConfig.access_token)) {
-          console.log('🤖 AI is enabled for this workspace')
+          console.log('🤖 WhatsApp is enabled, getting AI response...')
           
           // Decrypt Meta access token
           const rawToken = decrypt(waConfig.access_token_encrypted || waConfig.access_token)
           
           // Get AI Response
           const { config: aiConfig, pastMessages } = await getAIContext(workspaceId, conversationId)
-          const reply = await generateAIResponse(aiConfig, pastMessages, messageText, "\n\n(Context: You are replying via WhatsApp. Keep it concise.)")
+          
+          if (!aiConfig) {
+            console.warn('⚠️ AI not configured - using fallback')
+            replySource = 'fallback-no-config'
+          } else {
+            try {
+              reply = await generateAIResponse(aiConfig, pastMessages, messageText, "\n\n(Context: You are replying via WhatsApp. Keep it concise.)")
+              replySource = reply ? 'ai' : 'fallback-empty'
+            } catch (aiErr: any) {
+              console.error('❌ AI generation failed:', aiErr.message)
+              replySource = 'fallback-error'
+            }
+          }
+        } else {
+          console.log('ℹ️ WhatsApp not enabled or no token')
+          replySource = 'disabled'
+        }
+      } catch (err: any) {
+        console.error('❌ AI Response Error:', err.message)
+        replySource = 'error'
+      }
 
-          if (reply) {
-            console.log(`🤖 AI Reply: "${reply}"`)
+      // Fallback message if AI failed or not configured
+      if (!reply) {
+        reply = "Thanks for your message! Our team will get back to you shortly."
+        console.log('📝 Using fallback response:', reply)
+      } else {
+        console.log(`🤖 AI Reply: "${reply}"`)
+      }
+
+      // Send reply via WhatsApp API
+      if (replySource !== 'disabled') {
+        try {
+          // Get WhatsApp config for sending
+          const { data: waConfig } = await supabase
+            .from('whatsapp_config')
+            .select('phone_number_id, access_token_encrypted')
+            .eq('workspace_id', workspaceId)
+            .single()
+
+          if (waConfig?.phone_number_id && (waConfig.access_token_encrypted || process.env.WHATSAPP_ACCESS_TOKEN)) {
+            const rawToken = decrypt(waConfig.access_token_encrypted || process.env.WHATSAPP_ACCESS_TOKEN || '')
             
-            // Send via WhatsApp API
             console.log('📤 Sending reply to Meta API...')
             const waRes = await fetch(`https://graph.facebook.com/v17.0/${waConfig.phone_number_id}/messages`, {
               method: 'POST',
@@ -225,32 +274,29 @@ export async function POST(request: NextRequest) {
 
             if (waRes.ok) {
               console.log('✅ Reply sent successfully via Meta')
-              // Save AI message to DB
-              await supabase.from('messages').insert({
-                conversation_id: conversationId,
-                role: 'assistant',
-                content: reply,
-                channel: 'whatsapp',
-                timestamp: new Date().toISOString()
-              })
-
-              await supabase.from('conversations').update({
-                last_message: reply,
-                last_message_at: new Date().toISOString()
-              }).eq('id', conversationId)
             } else {
               const waData = await waRes.json()
               console.error('❌ Meta API Error:', JSON.stringify(waData, null, 2))
             }
-          } else {
-            console.log('ℹ️ AI returned an empty reply')
           }
-        } else {
-          console.log('ℹ️ WhatsApp AI or token not configured/enabled')
+        } catch (sendErr: any) {
+          console.error('❌ Failed to send reply:', sendErr.message)
         }
-      } catch (aiErr: any) {
-        console.error('❌ AI Automated Response Error:', aiErr.message)
       }
+
+      // Save assistant message to DB
+      await supabase.from('messages').insert({
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: reply,
+        channel: 'whatsapp',
+        timestamp: new Date().toISOString()
+      })
+
+      await supabase.from('conversations').update({
+        last_message: reply,
+        last_message_at: new Date().toISOString()
+      }).eq('id', conversationId)
     }
 
     return new NextResponse('OK', { status: 200 })

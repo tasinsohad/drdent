@@ -5,7 +5,6 @@ import { decrypt } from '@/lib/encryption'
 const supabase = supabaseServer
 
 export async function getAIContext(workspaceId: string, conversationId: string) {
-  // Fetch AI Config
   const { data: config } = await supabase
     .from('ai_configs')
     .select('*')
@@ -13,7 +12,8 @@ export async function getAIContext(workspaceId: string, conversationId: string) 
     .single()
 
   if (!config || !config.api_key_encrypted) {
-    throw new Error('AI not configured')
+    console.warn('⚠️ AI not configured for workspace:', workspaceId)
+    return { config: null, pastMessages: [] }
   }
 
   // Fetch Past Messages
