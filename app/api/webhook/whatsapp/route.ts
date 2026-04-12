@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // 1. Get/Initialize Workspace
+      // 1. Get/Initialize Workspace - use ANY existing workspace, don't create new
       let workspaceId = ''
       const { data: workspace, error: wsError } = await supabase
         .from('workspaces')
@@ -88,22 +88,17 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (wsError || !workspace) {
-        console.log('🛠️ No workspace found, auto-initializing...')
-        const { data: newW } = await supabase.from('workspaces').insert({
-          name: 'My Practice',
-          slug: `practice-${Date.now()}`
-        }).select('id').single()
-        
-        workspaceId = newW?.id || ''
-        if (workspaceId) {
-          await supabase.from('ai_configs').upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id' })
-          await supabase.from('widget_config').upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id' })
-          await supabase.from('followup_configs').upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id' })
-        }
+        console.log('🛠️ No workspace found at all - this should not happen if migration ran')
+        workspaceId = ''
       } else {
         workspaceId = workspace.id
+        console.log('🏢 Using existing workspace:', workspaceId)
       }
-      console.log('🏢 Workspace ID:', workspaceId)
+      
+      if (!workspaceId) {
+        console.error('❌ No workspace available, cannot process message')
+        return new NextResponse('No workspace configured', { status: 500 })
+      }
 
       // 2. Find or Create Patient
       let patientId = ''

@@ -167,7 +167,18 @@ export async function getPatients() {
 
 export async function getConversations() {
   const workspaceId = await getWorkspaceId()
-  if (!workspaceId) return []
+  console.log('[DEBUG] getConversations - workspaceId:', workspaceId)
+  if (!workspaceId) {
+    console.log('[DEBUG] No workspace found, checking all conversations...')
+    // For debugging - check if there are any conversations at all
+    const { data: allConvs } = await supabase
+      .from('conversations')
+      .select('*, patients(*)')
+      .order('last_message_at', { ascending: false })
+      .limit(10)
+    console.log('[DEBUG] All conversations (no filter):', allConvs?.length || 0)
+    return allConvs || []
+  }
   
   const { data, error } = await supabase
     .from('conversations')
@@ -175,7 +186,10 @@ export async function getConversations() {
     .eq('workspace_id', workspaceId)
     .order('last_message_at', { ascending: false })
   
-  if (error) return []
+  if (error) {
+    console.error('[DEBUG] getConversations error:', error)
+    return []
+  }
   return data || []
 }
 
