@@ -203,8 +203,6 @@ export async function POST(request: NextRequest) {
           await supabase.from('messages').insert(messagePayload)
         }
       }
-        console.error('❌ Failed to save user message:', msgInsertError.message)
-      }
 
       await supabase.from('conversations').update({
         last_message: messageText,
