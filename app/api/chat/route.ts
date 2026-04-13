@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAIContext, generateAIResponse } from '@/lib/ai'
 import { supabaseServer } from '@/lib/supabase-server'
+import { checkAvailability, createAppointment } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,7 +49,54 @@ export async function POST(request: Request) {
     const { config, pastMessages } = await getAIContext(workspaceId, conversationId)
 
     // 2. Generate Response
-    const reply = await generateAIResponse(config, pastMessages, trimmedMessage)
+    let reply = ''
+    const toolResults: any[] = []
+    let loopCount = 0
+    const MAX_LOOPS = 5
+
+    while (loopCount < MAX_LOOPS) {
+      const aiRes = await generateAIResponse(config, pastMessages, trimmedMessage, '', toolResults)
+      
+      if (aiRes.toolCalls) {
+        // Add the assistant's tool call message to history
+        toolResults.push({
+          role: 'assistant',
+          tool_calls: aiRes.toolCalls
+        })
+
+        for (const tool of aiRes.toolCalls) {
+          const args = JSON.parse(tool.function.arguments)
+          let resultData = null
+          
+          if (tool.function.name === 'check_availability') {
+            resultData = await checkAvailability(workspaceId, args.datetime, supabase)
+          } else if (tool.function.name === 'book_appointment') {
+            // In widget chat, we need to know the patientId. 
+            // Usually, widgets have a patient associated or it's an anonymous lead.
+            // For now, we'll try to find a patient by conversation or create a lead.
+            const { data: conv } = await supabase.from('conversations').select('patient_id').eq('id', conversationId).single()
+            
+            resultData = await createAppointment({
+              patient_id: conv?.patient_id,
+              datetime: args.datetime,
+              treatment: args.treatment
+            }, supabase)
+          }
+
+          toolResults.push({
+            role: 'tool',
+            tool_call_id: tool.id,
+            content: JSON.stringify(resultData)
+          })
+        }
+        
+        loopCount++
+        continue
+      }
+
+      reply = aiRes.text || ''
+      break
+    }
 
     // 3. Save AI message to DB
     await supabase.from('messages').insert({

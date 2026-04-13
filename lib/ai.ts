@@ -27,12 +27,54 @@ export async function getAIContext(workspaceId: string, conversationId: string) 
   return { config, pastMessages: pastMessages?.reverse() || [] }
 }
 
+export const TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'check_availability',
+      description: 'Check if a specific date and time is available for an appointment.',
+      parameters: {
+        type: 'object',
+        properties: {
+          datetime: {
+            type: 'string',
+            description: 'The requested appointment date and time (ISO format or descriptive like "2024-04-14T10:00:00Z").'
+          }
+        },
+        required: ['datetime']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'book_appointment',
+      description: 'Book a dental appointment for a patient.',
+      parameters: {
+        type: 'object',
+        properties: {
+          datetime: {
+            type: 'string',
+            description: 'The appointment date and time (ISO format).'
+          },
+          treatment: {
+            type: 'string',
+            description: 'The type of treatment requested (e.g., cleaning, checkup).'
+          }
+        },
+        required: ['datetime']
+      }
+    }
+  }
+]
+
 export async function generateAIResponse(
   config: any,
   pastMessages: any[],
   currentMessage: string,
-  systemPromptAddition: string = ''
-) {
+  systemPromptAddition: string = '',
+  toolResults: any[] = []
+): Promise<{ text?: string, toolCalls?: any[] }> {
   if (!config || !config.api_key_encrypted) {
     throw new Error('AI configuration is missing')
   }
@@ -41,23 +83,16 @@ export async function generateAIResponse(
   const model = config.model || (provider === 'google' ? 'gemini-1.5-flash' : 'gpt-4o')
   const apiKey = decrypt(config.api_key_encrypted)
   
-  if (!apiKey || apiKey.trim().length === 0) {
-    throw new Error('Invalid API key')
-  }
-  
   const sanitizedApiKey = apiKey.replace(/[^\x20-\x7E]/g, '')
-  if (sanitizedApiKey !== apiKey) {
-    console.warn('⚠️ API key contained non-printable characters, sanitized')
-  }
-  
-  const baseSystemPrompt = config.system_prompt || 'You are a helpful dental receptionist.'
-  const systemPrompt = baseSystemPrompt + systemPromptAddition
+  const baseSystemPrompt = config.system_prompt || 'You are Emma, a friendly dental receptionist.'
+  const systemPrompt = baseSystemPrompt + systemPromptAddition + "\n\nCRITICAL: Always use check_availability before booking. Today is " + new Date().toLocaleDateString()
 
   if (provider === 'openai') {
-    const messages = [
+    const messages: any[] = [
       { role: 'system', content: systemPrompt },
       ...pastMessages.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: currentMessage }
+      { role: 'user', content: currentMessage },
+      ...toolResults // Expecting messages with role 'tool' or 'assistant' (for tool_calls)
     ]
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -69,6 +104,8 @@ export async function generateAIResponse(
       body: JSON.stringify({
         model,
         messages,
+        tools: TOOLS,
+        tool_choice: 'auto',
         max_tokens: 300,
         temperature: 0.7
       })
@@ -80,7 +117,12 @@ export async function generateAIResponse(
     }
 
     const data = await res.json()
-    return data.choices[0].message.content
+    const message = data.choices[0].message
+    
+    if (message.tool_calls) {
+      return { toolCalls: message.tool_calls }
+    }
+    return { text: message.content }
 
   } else if (provider === 'google') {
     const history = pastMessages.map(m => ({
@@ -88,12 +130,18 @@ export async function generateAIResponse(
       parts: [{ text: m.content }]
     }))
 
+    // Format tools for Gemini
+    const geminiTools = [{
+      function_declarations: TOOLS.map(t => t.function)
+    }]
+
     const body = {
       contents: [
         ...history,
         { role: 'user', parts: [{ text: currentMessage }] }
       ],
       systemInstruction: { parts: [{ text: systemPrompt }] },
+      tools: geminiTools,
       generationConfig: { maxOutputTokens: 300, temperature: 0.7 }
     }
 
@@ -109,7 +157,23 @@ export async function generateAIResponse(
     }
 
     const data = await res.json()
-    return data.candidates?.[0]?.content?.parts?.[0]?.text
+    const part = data.candidates?.[0]?.content?.parts?.[0]
+    
+    if (part?.functionCall) {
+      // Normalize Gemini function call to look a bit like OpenAI's for easier handling
+      return { 
+        toolCalls: [{
+          id: 'call_' + Date.now(),
+          type: 'function',
+          function: {
+            name: part.functionCall.name,
+            arguments: JSON.stringify(part.functionCall.args)
+          }
+        }]
+      }
+    }
+    
+    return { text: part?.text }
   }
 
   throw new Error('Unsupported provider')

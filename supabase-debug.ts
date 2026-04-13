@@ -17,6 +17,10 @@ async function test() {
   if (cfgError) console.error("❌ WhatsApp Config Error:", cfgError.message)
   else console.log("📊 WhatsApp Config count:", configs?.length || 0, configs)
 
+  const { data: aiConfigs, error: aiError } = await supabase.from('ai_configs').select('*')
+  if (aiError) console.error("❌ AI Config Error:", aiError.message)
+  else console.log("📊 AI Configs:", aiConfigs)
+
   const { data: convs, error: convError } = await supabase.from('conversations').select('*')
   if (convError) console.error("❌ Conversations Error:", convError.message)
   else console.log("📊 Conversations count:", convs?.length || 0)

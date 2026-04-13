@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer as supabase } from '@/lib/supabase-server'
 import { getAIContext, generateAIResponse } from '@/lib/ai'
 import { decrypt } from '@/lib/encryption'
+import { checkAvailability, createAppointment } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -214,8 +215,52 @@ export async function POST(request: NextRequest) {
         } else {
           try {
             console.log('🎯 Calling AI with model:', aiConfig.model)
-            reply = await generateAIResponse(aiConfig, pastMessages, messageText, "\n\n(Context: You are replying via WhatsApp. Keep it concise.)")
-            console.log('✅ AI response generated:', reply ? 'yes' : 'no')
+            const toolResults: any[] = []
+            let loopCount = 0
+            const MAX_LOOPS = 5
+
+            while (loopCount < MAX_LOOPS) {
+              const aiRes = await generateAIResponse(aiConfig, pastMessages, messageText, "\n\n(Context: You are replying via WhatsApp. Keep it concise.)", toolResults)
+              
+              if (aiRes.toolCalls) {
+                console.log('🛠️ AI requested tools:', aiRes.toolCalls.length)
+                
+                // Add the assistant's tool call message to history
+                toolResults.push({
+                  role: 'assistant',
+                  tool_calls: aiRes.toolCalls
+                })
+
+                for (const tool of aiRes.toolCalls) {
+                  const args = JSON.parse(tool.function.arguments)
+                  console.log(`🔧 Executing ${tool.function.name}:`, args)
+                  
+                  let resultData = null
+                  if (tool.function.name === 'check_availability') {
+                    resultData = await checkAvailability(workspaceId, args.datetime, supabase)
+                  } else if (tool.function.name === 'book_appointment') {
+                    resultData = await createAppointment({
+                      patient_id: patientId,
+                      datetime: args.datetime,
+                      treatment: args.treatment
+                    }, supabase)
+                  }
+
+                  toolResults.push({
+                    role: 'tool',
+                    tool_call_id: tool.id,
+                    content: JSON.stringify(resultData)
+                  })
+                }
+                
+                loopCount++
+                continue // Go back to AI with results
+              }
+
+              reply = aiRes.text
+              console.log('✅ Final AI response generated:', reply ? 'yes' : 'no')
+              break
+            }
           } catch (aiErr: any) {
             console.error('❌ AI generation error:', aiErr.message)
           }

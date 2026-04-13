@@ -288,13 +288,19 @@ export async function updatePatientStatus(patientId: string, newStatus: string) 
   if (error) throw new Error(error.message)
 }
 
-export async function deletePatient(patientId: string) {
-  const { error } = await supabase
-    .from('patients')
-    .delete()
-    .eq('id', patientId)
+export async function checkAvailability(workspaceId: string, datetime: string, client = supabase) {
+  const start = new Date(datetime)
+  const end = new Date(start.getTime() + 30 * 60000) // Default 30 min duration
   
-  if (error) throw new Error(error.message)
+  const { data, error } = await client
+    .from('appointments')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .gte('datetime', start.toISOString())
+    .lt('datetime', end.toISOString())
+  
+  if (error) return { available: false, error: error.message }
+  return { available: data.length === 0 }
 }
 
 export async function createAppointment(appointment: {
@@ -302,10 +308,12 @@ export async function createAppointment(appointment: {
   datetime: string
   treatment?: string
   duration?: number
-}) {
-  const workspaceId = await ensureWorkspace()
+}, client = supabase) {
+  // Use provided client to get workspace
+  const { data: ws } = await client.from('workspaces').select('id').limit(1).single()
+  const workspaceId = ws?.id
   
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('appointments')
     .insert({
       workspace_id: workspaceId,
