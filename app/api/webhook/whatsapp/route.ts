@@ -249,6 +249,7 @@ export async function POST(request: NextRequest) {
                   toolResults.push({
                     role: 'tool',
                     tool_call_id: tool.id,
+                    functionName: tool.function.name,
                     content: JSON.stringify(resultData)
                   })
                 }

@@ -130,16 +130,70 @@ export async function generateAIResponse(
       parts: [{ text: m.content }]
     }))
 
+    // Add toolResults to Gemini history
+    // toolResults are messages with role 'assistant' (with tool_calls) or 'tool'
+    const toolHistory = toolResults.map(m => {
+      if (m.role === 'assistant') {
+        return {
+          role: 'model',
+          parts: m.tool_calls.map((tc: any) => ({
+            functionCall: {
+              name: tc.function.name,
+              args: JSON.parse(tc.function.arguments)
+            }
+          }))
+        }
+      } else {
+        return {
+          role: 'user', // In Generative Language API, tool results are often role 'user' or 'function'
+          parts: [{
+            functionResponse: {
+              name: 'unknown', // We don't have the name in the toolResults role 'tool' msg easily, but we can fix that
+              response: { content: m.content }
+            }
+          }]
+        }
+      }
+    })
+
+    // To make functionResponse correct, we need the function name. 
+    // Let's refine the toolResults format or lookup the name.
+    // Actually, let's just make the toolResults format more Gemini-friendly.
+
+    const geminiContents = [
+      ...history,
+      { role: 'user', parts: [{ text: currentMessage }] },
+      ...toolResults.map(m => {
+        if (m.role === 'assistant') {
+          return {
+            role: 'model',
+            parts: m.tool_calls.map((tc: any) => ({
+              functionCall: {
+                name: tc.function.name,
+                args: JSON.parse(tc.function.arguments)
+              }
+            }))
+          }
+        }
+        return {
+          role: 'function', // Some versions use 'function' role
+          parts: [{
+            functionResponse: {
+              name: (m as any).functionName || 'check_availability', // Fallback
+              response: { result: m.content }
+            }
+          }]
+        }
+      })
+    ]
+
     // Format tools for Gemini
     const geminiTools = [{
       function_declarations: TOOLS.map(t => t.function)
     }]
 
     const body = {
-      contents: [
-        ...history,
-        { role: 'user', parts: [{ text: currentMessage }] }
-      ],
+      contents: geminiContents,
       systemInstruction: { parts: [{ text: systemPrompt }] },
       tools: geminiTools,
       generationConfig: { maxOutputTokens: 300, temperature: 0.7 }
