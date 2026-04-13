@@ -33,9 +33,23 @@ export async function generateAIResponse(
   currentMessage: string,
   systemPromptAddition: string = ''
 ) {
+  if (!config || !config.api_key_encrypted) {
+    throw new Error('AI configuration is missing')
+  }
+
   const provider = config.provider || 'openai'
   const model = config.model || (provider === 'google' ? 'gemini-1.5-flash' : 'gpt-4o')
   const apiKey = decrypt(config.api_key_encrypted)
+  
+  if (!apiKey || apiKey.trim().length === 0) {
+    throw new Error('Invalid API key')
+  }
+  
+  const sanitizedApiKey = apiKey.replace(/[^\x20-\x7E]/g, '')
+  if (sanitizedApiKey !== apiKey) {
+    console.warn('⚠️ API key contained non-printable characters, sanitized')
+  }
+  
   const baseSystemPrompt = config.system_prompt || 'You are a helpful dental receptionist.'
   const systemPrompt = baseSystemPrompt + systemPromptAddition
 
@@ -50,7 +64,7 @@ export async function generateAIResponse(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${sanitizedApiKey}`
       },
       body: JSON.stringify({
         model,
@@ -83,7 +97,7 @@ export async function generateAIResponse(
       generationConfig: { maxOutputTokens: 300, temperature: 0.7 }
     }
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${sanitizedApiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)

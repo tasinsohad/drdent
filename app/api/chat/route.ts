@@ -32,8 +32,14 @@ export async function POST(request: Request) {
     }
 
     const { message, conversationId, workspaceId } = await request.json()
-    if (!message || !conversationId || !workspaceId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    const trimmedMessage = typeof message === 'string' ? message.trim() : ''
+    if (!trimmedMessage || !conversationId || !workspaceId) {
+      return NextResponse.json({ error: 'Missing or invalid required fields' }, { status: 400 })
+    }
+
+    const imagePattern = /^(data:image\/|https?:\/\/.+\.(jpg|jpeg|png|gif|webp)|\[image)/
+    if (imagePattern.test(trimmedMessage.toLowerCase())) {
+      return NextResponse.json({ error: 'Image input is not supported. This AI model does not support image processing.' }, { status: 400 })
     }
 
     const supabase = supabaseServer
@@ -42,7 +48,7 @@ export async function POST(request: Request) {
     const { config, pastMessages } = await getAIContext(workspaceId, conversationId)
 
     // 2. Generate Response
-    const reply = await generateAIResponse(config, pastMessages, message)
+    const reply = await generateAIResponse(config, pastMessages, trimmedMessage)
 
     // 3. Save AI message to DB
     await supabase.from('messages').insert({
