@@ -84,7 +84,8 @@ export async function POST(request: NextRequest) {
         .maybeSingle()
 
       if (alreadyProcessed) {
-        console.log(`⏭️ Message ${waId} already processed, skipping.`)
+        console.log(`⏭️ Message ${waId} already processed, returning OK.`)
+        // Important: Stop here for this message, don't proceed to AI or fallback
         continue
       }
 
@@ -212,6 +213,8 @@ export async function POST(request: NextRequest) {
       // 5. AI Automated Response
       console.log('🤖 Starting AI response flow...')
       let reply = null
+      let aiErrorOccurred = false
+      let toolsWereUsed = false
       
       // Get WhatsApp config first
       const { data: waConfig, error: waConfigError } = await supabase
@@ -247,6 +250,7 @@ export async function POST(request: NextRequest) {
               
               if (aiRes.toolCalls) {
                 console.log('🛠️ AI requested tools:', aiRes.toolCalls.length)
+                toolsWereUsed = true
                 
                 // Add the assistant's tool call message to history
                 toolResults.push({
@@ -289,14 +293,15 @@ export async function POST(request: NextRequest) {
             }
           } catch (aiErr: any) {
             console.error('❌ AI generation error:', aiErr.message)
+            aiErrorOccurred = true
           }
         }
       } else {
         console.log('ℹ️ WhatsApp not enabled or no access token')
       }
 
-      // Fallback if no reply
-      if (!reply) {
+      // Fallback only if we have NO reply AND an error occurred or no tools were even attempted
+      if (!reply && (aiErrorOccurred || !toolsWereUsed)) {
         reply = "Thanks for your message! Our team will get back to you shortly."
         console.log('📝 Using fallback reply')
       }
