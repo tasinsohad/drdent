@@ -11,7 +11,13 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/:path*',
+        source: '/widget',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors *; default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' *" },
+        ],
+      },
+      {
+        source: '/((?!widget).*)', // All paths except /widget
         headers: [
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
           {
@@ -30,23 +36,14 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              // Scripts: Next.js chunks + Stripe
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
-              // Styles: inline (Tailwind) + Google Fonts
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              // Fonts: Google Fonts CDN
               "font-src 'self' https://fonts.gstatic.com",
-              // Images: self + data URIs + avatar CDNs
               "img-src 'self' data: blob: https://avatars.githubusercontent.com https://lh3.googleusercontent.com https://res.cloudinary.com",
-              // Connections: Supabase + Stripe + own origin
               `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://*.supabase.co'} https://api.stripe.com wss://*.supabase.co`,
-              // Frames: Stripe
               "frame-src https://js.stripe.com https://hooks.stripe.com",
-              // Objects: none
               "object-src 'none'",
-              // Base URI: restrict to own origin
               "base-uri 'self'",
-              // Form actions: own origin
               "form-action 'self'",
             ].join('; '),
           },

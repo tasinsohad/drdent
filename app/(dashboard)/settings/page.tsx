@@ -1021,6 +1021,13 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const [greetingText, setGreetingText] = useState("Hi! How can we help you today?")
   const [embedToken, setEmbedToken] = useState("")
   const [widgetEnabled, setWidgetEnabled] = useState(true)
+  const [embedUrl, setEmbedUrl] = useState("")
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setEmbedUrl(`${window.location.origin}/embed.js`)
+    }
+  }, [])
 
   const [whatsappEnabled, setWhatsappEnabled] = useState(false)
   const [phoneNumberId, setPhoneNumberId] = useState("")
@@ -1435,7 +1442,8 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   }
 
   const copyEmbedCode = () => {
-    navigator.clipboard.writeText(`<script src="https://widget.drdent.ai/embed.js?token=${embedToken || 'your-token'}"></script>`)
+    const url = embedUrl || (typeof window !== 'undefined' ? `${window.location.origin}/embed.js` : 'https://drdent.ai/embed.js')
+    navigator.clipboard.writeText(`<script src="${url}?token=${embedToken || 'your-token'}"></script>`)
   }
 
   return (
@@ -2260,7 +2268,7 @@ ON CONFLICT (workspace_id) DO NOTHING;`
               <div className="space-y-2">
                 <Label>Embed Code</Label>
                 <div className="p-3 bg-muted rounded-lg font-mono text-xs overflow-x-auto">
-                  {`<script src="https://widget.drdent.ai/embed.js?token=${embedToken || 'your-token'}"></script>`}
+                  {`<script src="${embedUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://drdent.ai')}/embed.js?token=${embedToken || 'your-token'}"></script>`}
                 </div>
                 <Button variant="outline" size="sm" onClick={copyEmbedCode}>
                   <Copy className="h-3 w-3 mr-2" />
