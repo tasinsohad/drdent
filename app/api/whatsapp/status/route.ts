@@ -23,9 +23,16 @@ export async function GET(req: NextRequest) {
     const methodToCheck = requestedMethod || config.connection_method || 'meta'
 
     if (methodToCheck === 'qr') {
-      const serviceUrl = config.service_url || process.env.WHATSAPP_SERVICE_URL;
+      const isVercel = process.env.VERCEL === '1' || process.env.NEXT_PUBLIC_VERCEL_ENV;
+      const defaultUrl = isVercel ? '' : 'http://localhost:3001';
+      const serviceUrl = config.service_url || process.env.WHATSAPP_SERVICE_URL || defaultUrl;
+      
       if (!serviceUrl) {
-        return NextResponse.json({ status: 'disconnected', error: 'No service URL', method: 'qr' })
+        return NextResponse.json({ 
+          status: 'disconnected', 
+          error: 'No service URL configured. On Vercel, a public URL is required.', 
+          method: 'qr' 
+        })
       }
 
       // Proxy to whatsapp-service
@@ -34,7 +41,13 @@ export async function GET(req: NextRequest) {
         const data = await res.json()
         return NextResponse.json({ ...data, method: 'qr' })
       } catch (err: any) {
-        return NextResponse.json({ status: 'disconnected', error: 'Service Unavailable', method: 'qr' })
+        return NextResponse.json({ 
+          status: 'disconnected', 
+          error: 'Service Unavailable', 
+          method: 'qr', 
+          serviceUrl,
+          isLocalhost: serviceUrl.includes('localhost') 
+        })
       }
     } else {
       // Meta API method

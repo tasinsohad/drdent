@@ -36,3 +36,7 @@ next-env.d.ts
 # IDE
 .vscode/
 .idea/
+
+# WhatsApp Service
+whatsapp-service/session/
+whatsapp-service/node_modules/

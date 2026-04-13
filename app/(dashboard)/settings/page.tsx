@@ -2048,7 +2048,7 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                     </div>
                   ) : whatsappStatus === 'qr' && whatsappQR ? (
                     <div className="text-center space-y-4">
-                      <div className="bg-white p-4 rounded-xl shadow-inner inline-block">
+                      <div className="bg-white p-4 rounded-xl shadow-inner inline-block border">
                         <img src={whatsappQR} alt="WhatsApp QR Code" className="w-48 h-48" />
                       </div>
                       <p className="text-sm">Scan this code with your WhatsApp app</p>
@@ -2056,10 +2056,40 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                         <RefreshCw className="h-4 w-4 mr-2" /> Refresh QR
                       </Button>
                     </div>
+                  ) : whatsappStatus === 'disconnected' ? (
+                    <div className="text-center space-y-4">
+                      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
+                        <Smartphone className="h-8 w-8 text-slate-400" />
+                      </div>
+                      <div className="max-w-[280px]">
+                        <h3 className="text-lg font-semibold">Service Not Responding</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          The WhatsApp bridge service is not active at the configured URL.
+                        </p>
+                        {!whatsappServiceUrl ? (
+                          <p className="text-[10px] text-amber-600 font-medium mt-2">
+                            ⚠️ Please enter your Service URL below (e.g., http://localhost:3001)
+                          </p>
+                        ) : (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && whatsappServiceUrl.includes('localhost')) ? (
+                          <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg text-left">
+                            <p className="text-[10px] text-red-700 font-bold flex items-center">
+                              <AlertCircle className="h-3 w-3 mr-1" /> Vercel / Production Detected
+                            </p>
+                            <p className="text-[9px] text-red-600 mt-1">
+                              You cannot use "localhost" for the Service URL on Vercel. 
+                              Deploy the <strong>whatsapp-service</strong> separately (e.g. to Railway) and use its public URL.
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                      <Button variant="outline" size="sm" onClick={pollWhatsAppStatus}>
+                        <RefreshCw className="h-4 w-4 mr-2" /> Retry Connection
+                      </Button>
+                    </div>
                   ) : (
                     <div className="text-center space-y-4">
                       <Loader2 className="h-12 w-12 animate-spin mx-auto text-blue-500" />
-                      <p className="text-sm text-muted-foreground italic">Waiting for connection service...</p>
+                      <p className="text-sm text-muted-foreground italic">Connecting to service...</p>
                     </div>
                   )}
                 </div>

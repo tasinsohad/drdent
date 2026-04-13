@@ -21,7 +21,10 @@ const client = new Client({
     dataPath: './session'
   }),
   puppeteer: {
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    // Portability: Use system path if provided (for local Win), 
+    // otherwise let puppeteer find its own (default in Linux/Railway)
+    executablePath: process.env.CHROME_PATH || (process.platform === 'win32' ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' : undefined),
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-extensions'],
     headless: true
   }
 });
