@@ -87,7 +87,7 @@ export async function generateAIResponse(
   const baseSystemPrompt = config.system_prompt || 'You are Emma, a friendly dental receptionist.'
   const systemPrompt = baseSystemPrompt + systemPromptAddition + "\n\nCRITICAL: Always use check_availability before booking. Today is " + new Date().toLocaleDateString()
 
-  if (provider === 'openai') {
+  if (provider === 'openai' || provider === 'openrouter') {
     const messages: any[] = [
       { role: 'system', content: systemPrompt },
       ...pastMessages.map(m => ({ role: m.role, content: m.content })),
@@ -95,11 +95,17 @@ export async function generateAIResponse(
       ...toolResults // Expecting messages with role 'tool' or 'assistant' (for tool_calls)
     ]
 
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const baseUrl = provider === 'openrouter' 
+      ? 'https://openrouter.ai/api/v1' 
+      : 'https://api.openai.com/v1'
+
+    const res = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${sanitizedApiKey}`
+        'Authorization': `Bearer ${sanitizedApiKey}`,
+        'HTTP-Referer': 'https://drdent.vercel.app', // Optional for OpenRouter
+        'X-Title': 'Dr. Dent' // Optional for OpenRouter
       },
       body: JSON.stringify({
         model,
@@ -113,7 +119,7 @@ export async function generateAIResponse(
 
     if (!res.ok) {
       const err = await res.text()
-      throw new Error(`OpenAI Error: ${err}`)
+      throw new Error(`${provider} Error: ${err}`)
     }
 
     const data = await res.json()
