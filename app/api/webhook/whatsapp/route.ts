@@ -241,8 +241,10 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (sendConfig?.phone_number_id && sendConfig?.access_token_encrypted) {
-        const rawToken = decrypt(sendConfig.access_token_encrypted)
+        const rawToken = decrypt(sendConfig.access_token_encrypted).trim().replace(/[^\x20-\x7E]/g, '')
         
+        console.log(`📤 sending to Meta [${sendConfig.phone_number_id}] using token: ${rawToken.slice(0, 5)}...${rawToken.slice(-5)} (len: ${rawToken.length})`)
+
         const waRes = await fetch(`https://graph.facebook.com/v17.0/${sendConfig.phone_number_id}/messages`, {
           method: 'POST',
           headers: {
@@ -261,7 +263,11 @@ export async function POST(request: NextRequest) {
           console.log('✅ Reply sent to WhatsApp successfully!')
         } else {
           const waData = await waRes.json()
-          console.error('❌ Meta API error:', JSON.stringify(waData))
+          console.error('❌ Meta API error FULL:', JSON.stringify(waData, null, 2))
+          
+          if (waData.error?.message?.includes('access token')) {
+            console.error('🛑 ACTION REQUIRED: The WhatsApp Access Token appears to be invalid or expired. Please update it in Settings.')
+          }
         }
       } else {
         console.error('❌ Cannot send - missing phone_number_id or token')
