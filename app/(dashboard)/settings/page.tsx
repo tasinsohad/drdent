@@ -1394,7 +1394,7 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const pollWhatsAppStatus = async () => {
     if (whatsappMethod !== 'qr') return
     try {
-      const res = await fetch('/api/whatsapp/status')
+      const res = await fetch('/api/whatsapp/status?method=qr')
       const data = await res.json()
       setWhatsappStatus(data.status)
       setWhatsappConnectedNumber(data.phone || "")
