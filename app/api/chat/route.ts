@@ -79,7 +79,9 @@ export async function POST(request: Request) {
             resultData = await createAppointment({
               patient_id: conv?.patient_id,
               datetime: args.datetime,
-              treatment: args.treatment
+              treatment: args.treatment,
+              patient_name: args.patient_name,
+              patient_phone: args.patient_phone
             }, supabase)
           }
 

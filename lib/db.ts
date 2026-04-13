@@ -318,16 +318,51 @@ export async function createAppointment(appointment: {
   datetime: string
   treatment?: string
   duration?: number
+  patient_name?: string
+  patient_phone?: string
 }, client = supabase) {
   // Use provided client to get workspace
   const { data: ws } = await client.from('workspaces').select('id').limit(1).single()
   const workspaceId = ws?.id
+
+  let finalPatientId = appointment.patient_id
+
+  // Referral logic: if name/phone provided, create or find that patient
+  if (appointment.patient_name || appointment.patient_phone) {
+    const searchPhone = appointment.patient_phone || ''
+    
+    // Try to find
+    const { data: existing } = await client
+      .from('patients')
+      .select('id')
+      .eq('phone', searchPhone)
+      .eq('workspace_id', workspaceId)
+      .single()
+
+    if (existing) {
+      finalPatientId = existing.id
+    } else {
+      // Create new
+      const { data: newP } = await client
+        .from('patients')
+        .insert({
+          workspace_id: workspaceId,
+          name: appointment.patient_name || `Patient ${searchPhone.slice(-4) || 'New'}`,
+          phone: searchPhone,
+          source: 'referral'
+        })
+        .select('id')
+        .single()
+      
+      if (newP) finalPatientId = newP.id
+    }
+  }
   
   const { data, error } = await client
     .from('appointments')
     .insert({
       workspace_id: workspaceId,
-      patient_id: appointment.patient_id,
+      patient_id: finalPatientId,
       datetime: appointment.datetime,
       treatment: appointment.treatment,
       duration: appointment.duration || 30,

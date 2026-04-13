@@ -69,11 +69,24 @@ export async function POST(request: NextRequest) {
     }
 
     for (const msg of messages) {
+      const waId = msg.id
       const from = msg.from
       const messageText = msg.text?.body || ''
       const msgTimestamp = msg.timestamp
 
-      console.log(`💬 Processing message from ${from}: "${messageText}"`)
+      console.log(`💬 Processing message [${waId}] from ${from}: "${messageText}"`)
+
+      // 0. Deduplication - Check if this message was already processed
+      const { data: alreadyProcessed } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('wa_id', waId)
+        .maybeSingle()
+
+      if (alreadyProcessed) {
+        console.log(`⏭️ Message ${waId} already processed, skipping.`)
+        continue
+      }
 
       if (!from || !messageText) {
         console.warn('⚠️ Missing data in message:', { from, messageText })
@@ -169,15 +182,27 @@ export async function POST(request: NextRequest) {
       console.log('🗪 Conversation ID:', conversationId)
 
       // 4. Save User Message
-      const { error: msgInsertError } = await supabase.from('messages').insert({
+      const messagePayload: any = {
         conversation_id: conversationId,
         role: 'user',
         content: messageText,
         channel: 'whatsapp',
         timestamp: new Date(parseInt(msgTimestamp) * 1000).toISOString(),
-      })
+      }
+      
+      // Only include wa_id if we successfully deduplicated earlier or want to track it
+      if (waId) messagePayload.wa_id = waId
+
+      const { error: msgInsertError } = await supabase.from('messages').insert(messagePayload)
 
       if (msgInsertError) {
+        console.error('❌ Failed to save user message:', msgInsertError.message)
+        // If it's a "column not found" error, retry without wa_id
+        if (msgInsertError.message.includes('column "wa_id" does not exist')) {
+          delete messagePayload.wa_id
+          await supabase.from('messages').insert(messagePayload)
+        }
+      }
         console.error('❌ Failed to save user message:', msgInsertError.message)
       }
 
@@ -242,7 +267,9 @@ export async function POST(request: NextRequest) {
                     resultData = await createAppointment({
                       patient_id: patientId,
                       datetime: args.datetime,
-                      treatment: args.treatment
+                      treatment: args.treatment,
+                      patient_name: args.patient_name,
+                      patient_phone: args.patient_phone
                     }, supabase)
                   }
 

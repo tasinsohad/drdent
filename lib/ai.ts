@@ -60,6 +60,14 @@ export const TOOLS = [
           treatment: {
             type: 'string',
             description: 'The type of treatment requested (e.g., cleaning, checkup).'
+          },
+          patient_name: {
+            type: 'string',
+            description: 'The name of the patient (only if booking for someone else).'
+          },
+          patient_phone: {
+            type: 'string',
+            description: 'The phone number of the patient (only if booking for someone else).'
           }
         },
         required: ['datetime']

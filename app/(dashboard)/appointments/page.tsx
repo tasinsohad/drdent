@@ -217,8 +217,11 @@ export default function AppointmentsPage() {
   const getAppointmentsForSlot = (date: Date, time: string) => {
     return appointments.filter(apt => {
       const aptDate = new Date(apt.datetime)
-      const aptTime = `${aptDate.getHours().toString().padStart(2, '0')}:00`
-      return isSameDay(aptDate, date) && aptTime === time
+      // Extracts "HH:00" from the appointment time
+      const aptHour = aptDate.getHours().toString().padStart(2, '0')
+      const targetHour = time.split(':')[0]
+      
+      return isSameDay(aptDate, date) && aptHour === targetHour
     })
   }
 
