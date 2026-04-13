@@ -50,6 +50,7 @@ export default function ConversationsPage() {
   const [updating, setUpdating] = useState(false)
   const [showMobileChat, setShowMobileChat] = useState(false)
   const [whatsappConfigured, setWhatsappConfigured] = useState(false)
+  const loadingRef = useRef(false)  // Track loading state with ref
   const menuRef = useRef<HTMLDivElement>(null)
   const selectedConversationIdRef = useRef<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -82,28 +83,33 @@ export default function ConversationsPage() {
     }
   }, [])
 
-  const loadConversations = useCallback(async () => {
+  const loadConversationsRef = useRef(async () => {
+    console.log('[DEBUG UI] loadConversations called')
+    if (loadingRef.current) return
+    loadingRef.current = true
     setLoading(true)
     try {
+      console.log('[DEBUG UI] Calling getConversations...')
       const data = await getConversations()
+      console.log('[DEBUG UI] Got conversations:', data?.length || 0)
       setConversations(data)
       setCachedConversations(data)
       
       if (data.length > 0 && !selectedConversation) {
+        console.log('[DEBUG UI] Setting first conversation:', data[0].id)
         setSelectedConversation(data[0])
         loadMessages(data[0].id)
       }
     } catch (err) {
-      console.error('Failed to load conversations:', err)
-      if (cachedConversations.length > 0) {
-        setConversations(cachedConversations)
-      }
+      console.error('[DEBUG UI] Failed to load conversations:', err)
     }
+    console.log('[DEBUG UI] loadConversations done')
     setLoading(false)
-  }, [cachedConversations, setCachedConversations, selectedConversation, loadMessages])
+    loadingRef.current = false
+  })
 
   useEffect(() => {
-    loadConversations()
+    loadConversationsRef.current()
 
     const checkWhatsAppConfig = async () => {
       const config = await getWhatsAppConfig()
@@ -120,14 +126,12 @@ export default function ConversationsPage() {
           if (selectedConversationIdRef.current === payload.new.conversation_id) {
             setMessages((prev) => [...prev, payload.new as Message])
           }
-          loadConversations()
         }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'conversations' },
         (payload) => {
-          loadConversations()
           if (selectedConversationIdRef.current === payload.new.id) {
             setSelectedConversation((prev) => prev ? { ...prev, ...payload.new } as Conversation : null)
           }
@@ -138,7 +142,7 @@ export default function ConversationsPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [loadConversations])
+  }, [])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -205,7 +209,7 @@ export default function ConversationsPage() {
 
       setNewMessage('')
       loadMessages(selectedConversation.id)
-      loadConversations()
+      loadConversationsRef.current()
     } catch (err) {
       console.error('Failed to send message:', err)
     }
@@ -222,7 +226,7 @@ export default function ConversationsPage() {
         assigned_to: null,
       })
       setSelectedConversation({ ...selectedConversation, ai_paused: newAiPaused })
-      loadConversations()
+      loadConversationsRef.current()
     } catch (err) {
       console.error('Failed to toggle AI:', err)
     }
@@ -244,7 +248,7 @@ export default function ConversationsPage() {
         ai_paused: true,
         followup_disabled: true,
       })
-      loadConversations()
+      loadConversationsRef.current()
     } catch (err) {
       console.error('Failed to take over:', err)
     }
@@ -266,7 +270,7 @@ export default function ConversationsPage() {
         ai_paused: false,
         followup_disabled: false,
       })
-      loadConversations()
+      loadConversationsRef.current()
     } catch (err) {
       console.error('Failed to hand back:', err)
     }
@@ -283,7 +287,7 @@ export default function ConversationsPage() {
         followup_disabled: newFollowupDisabled,
       })
       setSelectedConversation({ ...selectedConversation, followup_disabled: newFollowupDisabled })
-      loadConversations()
+      loadConversationsRef.current()
     } catch (err) {
       console.error('Failed to toggle follow-up:', err)
     }

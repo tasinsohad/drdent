@@ -167,38 +167,26 @@ export async function getPatients() {
 
 export async function getConversations() {
   console.log('[DEBUG getConversations] Starting...')
-  const workspaceId = await getWorkspaceId()
-  console.log('[DEBUG getConversations] workspaceId:', workspaceId)
   
-  if (!workspaceId) {
-    console.log('[DEBUG getConversations] No workspaceId, fetching ALL conversations')
-    const { data: allConvs, error: allError } = await supabase
+  try {
+    // Direct query without workspace filter for now - simpler for debugging
+    const { data, error } = await supabase
       .from('conversations')
       .select('*, patients(*)')
       .order('last_message_at', { ascending: false })
+      .limit(50)
     
-    console.log('[DEBUG getConversations] All conversations:', allConvs?.length || 0, 'error:', allError)
-    return allConvs || []
+    if (error) {
+      console.error('[DEBUG getConversations] Error:', error.message, error.details)
+      return []
+    }
+    
+    console.log('[DEBUG getConversations] Found:', data?.length || 0, 'conversations')
+    return data || []
+  } catch (err: any) {
+    console.error('[DEBUG getConversations] Exception:', err.message)
+    return []
   }
-  
-  const { data, error } = await supabase
-    .from('conversations')
-    .select('*, patients(*)')
-    .eq('workspace_id', workspaceId)
-    .order('last_message_at', { ascending: false })
-  
-  if (error) {
-    console.error('[DEBUG getConversations] Error:', error)
-    // Try fallback - get all
-    const { data: fallbackData } = await supabase
-      .from('conversations')
-      .select('*, patients(*)')
-      .order('last_message_at', { ascending: false })
-    return fallbackData || []
-  }
-  
-  console.log('[DEBUG getConversations] Found:', data?.length || 0)
-  return data || []
 }
 
 export async function getMessages(conversationId: string) {
