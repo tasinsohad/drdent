@@ -1383,10 +1383,10 @@ ON CONFLICT (workspace_id) DO NOTHING;`
       if (data.success) {
         toast?.({ title: "Connection Successful", description: "Meta API credentials are valid." })
       } else {
-        toast?.({ title: "Connection Failed", description: data.error, variant: "destructive" })
+        toast?.({ title: "Connection Failed", description: data.error, variant: "error" })
       }
     } catch (err) {
-      toast?.({ title: "Error", description: "Failed to test connection", variant: "destructive" })
+      toast?.({ title: "Error", description: "Failed to test connection", variant: "error" })
     }
     setTestingMeta(false)
   }
@@ -1430,7 +1430,7 @@ ON CONFLICT (workspace_id) DO NOTHING;`
         await handleSaveWhatsAppConfig()
       }
     } catch (err) {
-      toast?.({ title: "Error", description: "Failed to disconnect", variant: "destructive" })
+      toast?.({ title: "Error", description: "Failed to disconnect", variant: "error" })
     }
   }
 
@@ -2111,7 +2111,7 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                   <div className="p-4 bg-muted/50 rounded-lg border border-border">
                     <div className="flex items-center justify-between mb-2">
                       <Label className="text-blue-600 font-bold">Step 1: Webhook URL</Label>
-                      <Button variant="ghost" size="xs" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhook/whatsapp`)}>
+                      <Button variant="ghost" size="sm" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhook/whatsapp`)}>
                         <Copy className="h-3 w-3 mr-1" /> Copy
                       </Button>
                     </div>
@@ -2121,7 +2121,7 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                   <div className="p-4 bg-muted/50 rounded-lg border border-border">
                     <div className="flex items-center justify-between mb-2">
                       <Label className="text-amber-600 font-bold">Step 2: Verify Token</Label>
-                      <Button variant="ghost" size="xs" onClick={() => navigator.clipboard.writeText(whatsappVerifyToken)}>
+                      <Button variant="ghost" size="sm" onClick={() => navigator.clipboard.writeText(whatsappVerifyToken)}>
                         <Copy className="h-3 w-3 mr-1" /> Copy
                       </Button>
                     </div>
