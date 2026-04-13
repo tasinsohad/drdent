@@ -34,7 +34,7 @@ export function decrypt(encrypted: string): string {
   try {
     const [ivHex, authTagHex, encryptedText] = encrypted.split(':')
     if (!ivHex || !authTagHex || !encryptedText) {
-      return Buffer.from(encrypted, 'base64').toString('utf-8')
+      return encrypted // Return as-is if not in our encrypted format
     }
 
     const key = getKey()

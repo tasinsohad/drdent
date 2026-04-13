@@ -122,9 +122,54 @@ export default function ConversationsPage() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
-        (payload) => {
+        async (payload) => {
+          console.log('[REALTIME] New message:', payload.new.id)
+          // 1. Update messages list if this is the active conversation
           if (selectedConversationIdRef.current === payload.new.conversation_id) {
-            setMessages((prev) => [...prev, payload.new as Message])
+            setMessages((prev) => {
+              // Avoid duplicates if we just sent it (optimistic)
+              if (prev.some(m => m.id === payload.new.id)) return prev
+              return [...prev, payload.new as Message]
+            })
+          }
+          
+          // 2. Update the sidebar list with last message
+          setConversations((prev) => {
+            const index = prev.findIndex(c => c.id === payload.new.conversation_id)
+            if (index === -1) {
+              // If conversation isn't in list, we might need to reload or wait for the conversation INSERT
+              return prev
+            }
+            const updated = [...prev]
+            updated[index] = {
+              ...updated[index],
+              last_message: payload.new.content,
+              last_message_at: payload.new.timestamp
+            }
+            // Sort by last message time
+            return updated.sort((a, b) => 
+              new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime()
+            )
+          })
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'conversations' },
+        async (payload) => {
+          console.log('[REALTIME] New conversation:', payload.new.id)
+          // Fetch the full record with patient details
+          const { data } = await supabase
+            .from('conversations')
+            .select('*, patients(*)')
+            .eq('id', payload.new.id)
+            .single()
+          
+          if (data) {
+            setConversations((prev) => {
+              if (prev.some(c => c.id === data.id)) return prev
+              return [data as Conversation, ...prev]
+            })
           }
         }
       )
@@ -132,9 +177,11 @@ export default function ConversationsPage() {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'conversations' },
         (payload) => {
+          console.log('[REALTIME] Updated conversation:', payload.new.id)
           if (selectedConversationIdRef.current === payload.new.id) {
             setSelectedConversation((prev) => prev ? { ...prev, ...payload.new } as Conversation : null)
           }
+          setConversations((prev) => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c))
         }
       )
       .subscribe()

@@ -219,3 +219,18 @@ ON CONFLICT (workspace_id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('widget-assets', 'widget-assets', true)
 ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================
+-- ENABLE REALTIME
+-- =====================================================
+-- First, ensure the publication exists (Supabase default)
+-- Then add our tables to it
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+END $$;
+
+ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
