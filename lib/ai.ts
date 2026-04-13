@@ -104,8 +104,8 @@ export async function generateAIResponse(
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${sanitizedApiKey}`,
-        'HTTP-Referer': 'https://drdent.vercel.app', // Optional for OpenRouter
-        'X-Title': 'Dr. Dent' // Optional for OpenRouter
+        'HTTP-Referer': 'https://drdent.vercel.app',
+        'X-Title': 'Dr. Dent'
       },
       body: JSON.stringify({
         model,
@@ -117,12 +117,19 @@ export async function generateAIResponse(
       })
     })
 
+    const data = await res.json()
+
     if (!res.ok) {
-      const err = await res.text()
-      throw new Error(`${provider} Error: ${err}`)
+      console.error(`❌ ${provider} API Error Response:`, JSON.stringify(data, null, 2))
+      const errMsg = data.error?.message || data.error || JSON.stringify(data)
+      throw new Error(`${provider} Error: ${errMsg}`)
     }
 
-    const data = await res.json()
+    if (!data.choices || data.choices.length === 0) {
+      console.error(`❌ ${provider} returned no choices:`, JSON.stringify(data, null, 2))
+      throw new Error(`${provider} returned empty response. Check if the model supports tool calling or if you have credits.`)
+    }
+
     const message = data.choices[0].message
     
     if (message.tool_calls) {
@@ -211,12 +218,13 @@ export async function generateAIResponse(
       body: JSON.stringify(body)
     })
 
-    if (!res.ok) {
-      const err = await res.text()
-      throw new Error(`Gemini Error: ${err}`)
-    }
-
     const data = await res.json()
+
+    if (!res.ok) {
+      console.error('❌ Gemini API Error Response:', JSON.stringify(data, null, 2))
+      const errMsg = data.error?.message || JSON.stringify(data)
+      throw new Error(`Gemini Error: ${errMsg}`)
+    }
     const part = data.candidates?.[0]?.content?.parts?.[0]
     
     if (part?.functionCall) {
