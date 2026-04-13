@@ -188,95 +188,83 @@ export async function POST(request: NextRequest) {
       // 5. AI Automated Response
       console.log('🤖 Starting AI response flow...')
       let reply = null
-      let replySource = 'none'
       
-      try {
-        const { data: waConfig, error: configError } = await supabase
-          .from('whatsapp_config')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .single()
+      // Get WhatsApp config first
+      const { data: waConfig, error: waConfigError } = await supabase
+        .from('whatsapp_config')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .single()
 
-        if (configError) {
-          console.error('❌ Failed to fetch WhatsApp config:', configError.message)
-        }
+      console.log('📋 WhatsApp config:', waConfig ? 'found' : 'not found', 'enabled:', waConfig?.enabled)
 
-        if (waConfig?.enabled && (waConfig.access_token_encrypted || waConfig.access_token)) {
-          console.log('🤖 WhatsApp is enabled, getting AI response...')
-          
-          // Decrypt Meta access token
-          const rawToken = decrypt(waConfig.access_token_encrypted || waConfig.access_token)
-          
-          // Get AI Response
-          const { config: aiConfig, pastMessages } = await getAIContext(workspaceId, conversationId)
-          
-          if (!aiConfig) {
-            console.warn('⚠️ AI not configured - using fallback')
-            replySource = 'fallback-no-config'
-          } else {
-            try {
-              reply = await generateAIResponse(aiConfig, pastMessages, messageText, "\n\n(Context: You are replying via WhatsApp. Keep it concise.)")
-              replySource = reply ? 'ai' : 'fallback-empty'
-            } catch (aiErr: any) {
-              console.error('❌ AI generation failed:', aiErr.message)
-              replySource = 'fallback-error'
-            }
-          }
-        } else {
-          console.log('ℹ️ WhatsApp not enabled or no token')
-          replySource = 'disabled'
-        }
-      } catch (err: any) {
-        console.error('❌ AI Response Error:', err.message)
-        replySource = 'error'
+      if (waConfigError) {
+        console.error('❌ WhatsApp config error:', waConfigError.message)
       }
 
-      // Fallback message if AI failed or not configured
+      // Only proceed if WhatsApp is enabled AND has token
+      if (waConfig?.enabled && (waConfig.access_token_encrypted || waConfig.access_token)) {
+        console.log('✅ WhatsApp is enabled, attempting AI response...')
+        
+        // Get AI config
+        const { config: aiConfig, pastMessages } = await getAIContext(workspaceId, conversationId)
+        
+        if (!aiConfig) {
+          console.warn('⚠️ AI config not found - using fallback')
+        } else {
+          try {
+            console.log('🎯 Calling AI with model:', aiConfig.model)
+            reply = await generateAIResponse(aiConfig, pastMessages, messageText, "\n\n(Context: You are replying via WhatsApp. Keep it concise.)")
+            console.log('✅ AI response generated:', reply ? 'yes' : 'no')
+          } catch (aiErr: any) {
+            console.error('❌ AI generation error:', aiErr.message)
+          }
+        }
+      } else {
+        console.log('ℹ️ WhatsApp not enabled or no access token')
+      }
+
+      // Fallback if no reply
       if (!reply) {
         reply = "Thanks for your message! Our team will get back to you shortly."
-        console.log('📝 Using fallback response:', reply)
-      } else {
-        console.log(`🤖 AI Reply: "${reply}"`)
+        console.log('📝 Using fallback reply')
       }
 
-      // Send reply via WhatsApp API
-      if (replySource !== 'disabled') {
-        try {
-          // Get WhatsApp config for sending
-          const { data: waConfig } = await supabase
-            .from('whatsapp_config')
-            .select('phone_number_id, access_token_encrypted')
-            .eq('workspace_id', workspaceId)
-            .single()
+      // Send reply to WhatsApp
+      console.log('📤 Attempting to send reply to Meta API...')
+      
+      // Get fresh token for sending
+      const { data: sendConfig } = await supabase
+        .from('whatsapp_config')
+        .select('phone_number_id, access_token_encrypted')
+        .eq('workspace_id', workspaceId)
+        .single()
 
-          if (waConfig?.phone_number_id && (waConfig.access_token_encrypted || process.env.WHATSAPP_ACCESS_TOKEN)) {
-            const rawToken = decrypt(waConfig.access_token_encrypted || process.env.WHATSAPP_ACCESS_TOKEN || '')
-            
-            console.log('📤 Sending reply to Meta API...')
-            const waRes = await fetch(`https://graph.facebook.com/v17.0/${waConfig.phone_number_id}/messages`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${rawToken}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                messaging_product: "whatsapp",
-                to: from,
-                type: "text",
-                text: { body: reply }
-              })
-            })
+      if (sendConfig?.phone_number_id && sendConfig?.access_token_encrypted) {
+        const rawToken = decrypt(sendConfig.access_token_encrypted)
+        
+        const waRes = await fetch(`https://graph.facebook.com/v17.0/${sendConfig.phone_number_id}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${rawToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: from,
+            type: "text",
+            text: { body: reply }
+          })
+        })
 
-            if (waRes.ok) {
-              console.log('✅ Reply sent successfully via Meta')
-            } else {
-              const waData = await waRes.json()
-              console.error('❌ Meta API Error:', JSON.stringify(waData, null, 2))
-            }
-          }
-        } catch (sendErr: any) {
-          console.error('❌ Failed to send reply:', sendErr.message)
+        if (waRes.ok) {
+          console.log('✅ Reply sent to WhatsApp successfully!')
+        } else {
+          const waData = await waRes.json()
+          console.error('❌ Meta API error:', JSON.stringify(waData))
         }
+      } else {
+        console.error('❌ Cannot send - missing phone_number_id or token')
       }
 
       // Save assistant message to DB

@@ -166,17 +166,18 @@ export async function getPatients() {
 }
 
 export async function getConversations() {
+  console.log('[DEBUG getConversations] Starting...')
   const workspaceId = await getWorkspaceId()
-  console.log('[DEBUG] getConversations - workspaceId:', workspaceId)
+  console.log('[DEBUG getConversations] workspaceId:', workspaceId)
+  
   if (!workspaceId) {
-    console.log('[DEBUG] No workspace found, checking all conversations...')
-    // For debugging - check if there are any conversations at all
-    const { data: allConvs } = await supabase
+    console.log('[DEBUG getConversations] No workspaceId, fetching ALL conversations')
+    const { data: allConvs, error: allError } = await supabase
       .from('conversations')
       .select('*, patients(*)')
       .order('last_message_at', { ascending: false })
-      .limit(10)
-    console.log('[DEBUG] All conversations (no filter):', allConvs?.length || 0)
+    
+    console.log('[DEBUG getConversations] All conversations:', allConvs?.length || 0, 'error:', allError)
     return allConvs || []
   }
   
@@ -187,9 +188,16 @@ export async function getConversations() {
     .order('last_message_at', { ascending: false })
   
   if (error) {
-    console.error('[DEBUG] getConversations error:', error)
-    return []
+    console.error('[DEBUG getConversations] Error:', error)
+    // Try fallback - get all
+    const { data: fallbackData } = await supabase
+      .from('conversations')
+      .select('*, patients(*)')
+      .order('last_message_at', { ascending: false })
+    return fallbackData || []
   }
+  
+  console.log('[DEBUG getConversations] Found:', data?.length || 0)
   return data || []
 }
 
