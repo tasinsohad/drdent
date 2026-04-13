@@ -288,6 +288,16 @@ export async function updatePatientStatus(patientId: string, newStatus: string) 
   if (error) throw new Error(error.message)
 }
 
+export async function deletePatient(patientId: string, client = supabase) {
+  const { error } = await client
+    .from('patients')
+    .delete()
+    .eq('id', patientId)
+  
+  if (error) throw new Error(error.message)
+}
+
+
 export async function checkAvailability(workspaceId: string, datetime: string, client = supabase) {
   const start = new Date(datetime)
   const end = new Date(start.getTime() + 30 * 60000) // Default 30 min duration
