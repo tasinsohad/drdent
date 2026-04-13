@@ -138,6 +138,11 @@ CREATE TABLE IF NOT EXISTS whatsapp_config (
     whatsapp_business_id TEXT,
     access_token_encrypted TEXT,
     webhook_verify_token TEXT,
+    connection_method TEXT DEFAULT 'meta',
+    status TEXT DEFAULT 'disconnected',
+    qr_code TEXT,
+    service_url TEXT,
+    phone_number TEXT,
     enabled BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

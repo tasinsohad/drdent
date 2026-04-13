@@ -31,6 +31,7 @@ import {
 } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { supabase } from "@/lib/supabase-client"
+import { WhatsAppStatusDot } from "@/components/whatsapp-status-dot"
 
 // Lazy-load heavy components to improve initial load performance
 const GlobalSearch = dynamic(() => import("@/components/global-search").then(m => ({ default: m.GlobalSearch })), { ssr: false })
@@ -483,6 +484,7 @@ export default function DashboardLayout({
               </div>
             )}
             
+            <WhatsAppStatusDot />
             <ThemeToggle />
             
             <div className="relative">

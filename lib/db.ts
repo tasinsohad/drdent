@@ -129,6 +129,31 @@ export async function getWhatsAppConfig() {
   return data
 }
 
+export async function saveWhatsAppConfig(config: {
+  enabled?: boolean
+  phone_number_id?: string
+  whatsapp_business_id?: string
+  access_token_encrypted?: string
+  webhook_verify_token?: string
+  connection_method?: 'meta' | 'qr'
+  status?: string
+  qr_code?: string
+  service_url?: string
+  phone_number?: string
+}) {
+  const workspaceId = await ensureWorkspace()
+  
+  const { error } = await supabase
+    .from('whatsapp_config')
+    .upsert({
+      workspace_id: workspaceId,
+      ...config,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'workspace_id' })
+  
+  if (error) throw new Error(error.message)
+}
+
 export async function saveWidgetConfig(config: {
   primary_color?: string
   greeting_text?: string

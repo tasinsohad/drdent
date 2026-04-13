@@ -46,6 +46,7 @@ import {
 import { useAppStore } from "@/lib/store"
 import { supabase, testSupabaseConnection } from "@/lib/supabase-client"
 import { useToast } from "@/components/ui/toaster"
+import { cn } from "@/lib/utils"
 import { getFollowupConfig, saveFollowupConfig, getAuditLogs, getAIConfig, getWidgetConfig, getWhatsAppConfig } from "@/lib/db"
 
 const docSections = [
@@ -1026,6 +1027,12 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const [whatsappToken, setWhatsappToken] = useState("")
   const [whatsappBusinessId, setWhatsappBusinessId] = useState("")
   const [whatsappVerifyToken, setWhatsappVerifyToken] = useState("")
+  const [whatsappMethod, setWhatsappMethod] = useState<'meta' | 'qr'>('meta')
+  const [whatsappStatus, setWhatsappStatus] = useState('disconnected')
+  const [whatsappQR, setWhatsappQR] = useState<string | null>(null)
+  const [whatsappServiceUrl, setWhatsappServiceUrl] = useState("")
+  const [whatsappConnectedNumber, setWhatsappConnectedNumber] = useState("")
+  const [testingMeta, setTestingMeta] = useState(false)
   const [showWhatsappGuide, setShowWhatsappGuide] = useState(false)
 
   const [saving, setSaving] = useState<string | null>(null)
@@ -1100,6 +1107,10 @@ ON CONFLICT (workspace_id) DO NOTHING;`
           setWhatsappBusinessId(waConfig.whatsapp_business_id || '')
           setWhatsappToken(waConfig.access_token_encrypted || '')
           setWhatsappVerifyToken(waConfig.webhook_verify_token || '')
+          setWhatsappMethod(waConfig.connection_method || 'meta')
+          setWhatsappStatus(waConfig.status || 'disconnected')
+          setWhatsappServiceUrl(waConfig.service_url || '')
+          setWhatsappConnectedNumber(waConfig.phone_number || '')
         }
 
         // Load Follow-up config
@@ -1336,7 +1347,11 @@ ON CONFLICT (workspace_id) DO NOTHING;`
         whatsapp_business_id: whatsappBusinessId,
         access_token_encrypted: whatsappToken,
         webhook_verify_token: whatsappVerifyToken,
-        enabled: whatsappEnabled
+        connection_method: whatsappMethod,
+        service_url: whatsappServiceUrl,
+        enabled: whatsappEnabled,
+        status: whatsappStatus,
+        phone_number: whatsappConnectedNumber
       }, { onConflict: 'workspace_id' })
 
       if (error) throw error
@@ -1894,107 +1909,224 @@ ON CONFLICT (workspace_id) DO NOTHING;`
         </TabsContent>
 
         <TabsContent value="whatsapp" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5" />
-                WhatsApp
-              </CardTitle>
-              <CardDescription>Connect your business WhatsApp</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div>
-                  <p className="font-medium text-sm">Enable WhatsApp</p>
-                  <p className="text-xs text-muted-foreground">Receive messages from patients</p>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card 
+              className={cn(
+                "cursor-pointer transition-all border-2",
+                whatsappMethod === 'qr' ? "border-blue-600 bg-blue-50/10" : "hover:border-blue-200"
+              )}
+              onClick={() => setWhatsappMethod('qr')}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <Badge variant={whatsappMethod === 'qr' ? "default" : "outline"} className="bg-blue-600">Quick Setup</Badge>
+                  <Smartphone className="h-5 w-5 text-muted-foreground" />
                 </div>
-                <Switch checked={whatsappEnabled} onCheckedChange={setWhatsappEnabled} />
-              </div>
+                <CardTitle className="text-lg">QR Code Connection</CardTitle>
+                <CardDescription>Scan with your phone to connect instantly</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 mb-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-[10px] text-amber-800 dark:text-amber-200">
+                    <strong>Warning:</strong> Risk of number ban. Requires a persistent server (Render/Railway).
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
-              {whatsappEnabled && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p className="font-medium text-sm text-blue-800 dark:text-blue-200 mb-2">Webhook URL</p>
-                    <p className="text-xs text-muted-foreground mb-2">Add this URL in your Meta Developer Console → WhatsApp → Configuration → Webhook:</p>
-                    <div className="flex gap-2">
-                      <Input
-                        readOnly
-                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhook/whatsapp`}
-                        className="text-xs font-mono"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigator.clipboard.writeText(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhook/whatsapp`)}
-                      >
-                        <Copy className="h-4 w-4" />
+            <Card 
+              className={cn(
+                "cursor-pointer transition-all border-2",
+                whatsappMethod === 'meta' ? "border-green-600 bg-green-50/10" : "hover:border-green-200"
+              )}
+              onClick={() => setWhatsappMethod('meta')}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <Badge variant={whatsappMethod === 'meta' ? "default" : "outline"} className="bg-green-600">Recommended</Badge>
+                  <Bot className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <CardTitle className="text-lg">Meta Official API</CardTitle>
+                <CardDescription>Stable, enterprise-ready, no ban risk</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900 mb-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                  <p className="text-[10px] text-green-800 dark:text-green-200">
+                    <strong>Pros:</strong> 24/7 reliability, official support, no session expirations.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {whatsappMethod === 'qr' ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <RefreshCw className={cn("h-5 w-5", whatsappStatus === 'connecting' && "animate-spin")} />
+                  QR Code Connection
+                </CardTitle>
+                <CardDescription>Status: {whatsappStatus.charAt(0).toUpperCase() + whatsappStatus.slice(1)}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex flex-col items-center justify-center p-6 border rounded-xl bg-muted/30">
+                  {whatsappStatus === 'ready' ? (
+                    <div className="text-center space-y-4">
+                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                        <CheckCircle2 className="h-8 w-8 text-green-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold">Connected ✅</h3>
+                        <p className="text-sm text-muted-foreground">Number: {whatsappConnectedNumber}</p>
+                      </div>
+                      <Button variant="destructive" onClick={handleDisconnectQR}>Disconnect</Button>
+                    </div>
+                  ) : whatsappStatus === 'qr' && whatsappQR ? (
+                    <div className="text-center space-y-4">
+                      <div className="bg-white p-4 rounded-xl shadow-inner inline-block">
+                        <img src={whatsappQR} alt="WhatsApp QR Code" className="w-48 h-48" />
+                      </div>
+                      <p className="text-sm">Scan this code with your WhatsApp app</p>
+                      <Button variant="outline" size="sm" onClick={pollWhatsAppStatus}>
+                        <RefreshCw className="h-4 w-4 mr-2" /> Refresh QR
                       </Button>
                     </div>
+                  ) : (
+                    <div className="text-center space-y-4">
+                      <Loader2 className="h-12 w-12 animate-spin mx-auto text-blue-500" />
+                      <p className="text-sm text-muted-foreground italic">Waiting for connection service...</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Service URL (Express Service)</Label>
+                    <Input 
+                      placeholder="https://your-whatsapp-service.railway.app" 
+                      value={whatsappServiceUrl}
+                      onChange={(e) => setWhatsappServiceUrl(e.target.value)}
+                    />
+                    <p className="text-[10px] text-muted-foreground italic">
+                      This method requires the standalone WhatsApp service running on a persistent server.
+                    </p>
                   </div>
 
-                  <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">
-                    <p className="font-medium text-sm text-amber-800 dark:text-amber-200 mb-2">Verify Token</p>
-                    <p className="text-xs text-muted-foreground mb-2">Set this as your verify token in Meta Developer Console:</p>
-                    <Input
-                      type="password"
-                      placeholder="Enter a secure token"
-                      value={whatsappVerifyToken}
-                      onChange={(e) => setWhatsappVerifyToken(e.target.value)}
-                      className="font-mono"
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">Enable QR Integration</p>
+                      <p className="text-xs text-muted-foreground">Use QR connection for AI chat</p>
+                    </div>
+                    <Switch checked={whatsappEnabled} onCheckedChange={setWhatsappEnabled} />
+                  </div>
+
+                  <Button className="w-full bg-blue-600" onClick={handleSaveWhatsAppConfig} disabled={saving === 'whatsapp'}>
+                    {saving === 'whatsapp' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : "Save QR Settings"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageCircle className="h-5 w-5" />
+                    Meta Official API
+                  </CardTitle>
+                  <Button variant="outline" size="sm" onClick={handleTestMetaConnection} disabled={testingMeta || !whatsappToken || !phoneNumberId}>
+                    {testingMeta ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2 text-yellow-500" />}
+                    Test Connection
+                  </Button>
+                </div>
+                <CardDescription>The formal way to connect WhatsApp Business</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="p-4 bg-muted/50 rounded-lg border border-border">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-blue-600 font-bold">Step 1: Webhook URL</Label>
+                      <Button variant="ghost" size="xs" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhook/whatsapp`)}>
+                        <Copy className="h-3 w-3 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    <Input readOnly value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhook/whatsapp`} className="text-xs font-mono bg-background" />
+                  </div>
+
+                  <div className="p-4 bg-muted/50 rounded-lg border border-border">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-amber-600 font-bold">Step 2: Verify Token</Label>
+                      <Button variant="ghost" size="xs" onClick={() => navigator.clipboard.writeText(whatsappVerifyToken)}>
+                        <Copy className="h-3 w-3 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    <Input 
+                      placeholder="Set your own secure token" 
+                      value={whatsappVerifyToken} 
+                      onChange={(e) => setWhatsappVerifyToken(e.target.value)} 
+                      className="font-mono bg-background" 
                     />
-                    <p className="text-xs text-muted-foreground mt-2">Then add this to Vercel environment variables as WHATSAPP_VERIFY_TOKEN</p>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Phone Number ID</Label>
-                      <Input value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} />
+                      <Input value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} placeholder="1234567890" />
                     </div>
                     <div className="space-y-2">
                       <Label>Business Account ID</Label>
-                      <Input value={whatsappBusinessId} onChange={(e) => setWhatsappBusinessId(e.target.value)} />
+                      <Input value={whatsappBusinessId} onChange={(e) => setWhatsappBusinessId(e.target.value)} placeholder="0987654321" />
                     </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label>Access Token</Label>
-                    <Input type="password" value={whatsappToken} onChange={(e) => setWhatsappToken(e.target.value)} />
+                    <Label>System User Access Token</Label>
+                    <Input 
+                      type="password" 
+                      value={whatsappToken} 
+                      onChange={(e) => setWhatsappToken(e.target.value)} 
+                      placeholder="EAAGz..." 
+                    />
                   </div>
-                  <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSaveWhatsAppConfig}>
-                    {saving === 'whatsapp' ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : "Save WhatsApp Configuration"}
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">Enable Meta API</p>
+                    </div>
+                    <Switch checked={whatsappEnabled} onCheckedChange={setWhatsappEnabled} />
+                  </div>
+
+                  <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleSaveWhatsAppConfig} disabled={saving === 'whatsapp'}>
+                    {saving === 'whatsapp' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : "Save Meta Credentials"}
                   </Button>
                 </div>
-              )}
 
-              <Button
-                variant="outline"
-                onClick={() => setShowWhatsappGuide(!showWhatsappGuide)}
-                className="w-full justify-between"
-              >
-                <span>Setup Guide</span>
-                <ArrowRight className={`h-4 w-4 transition-transform ${showWhatsappGuide ? 'rotate-90' : ''}`} />
-              </Button>
-
-              {showWhatsappGuide && (
-                <div className="mt-4 space-y-3">
-                  {[
-                    { step: "1", title: "Create Meta Developer Account", desc: "Go to developers.facebook.com" },
-                    { step: "2", title: "Add WhatsApp Product", desc: "Add WhatsApp from products menu" },
-                    { step: "3", title: "Get Credentials", desc: "Get Phone Number ID, Business ID, and Token" },
-                    { step: "4", title: "Configure Webhook", desc: "Set up in Supabase Edge Functions" },
-                    { step: "5", title: "Start Receiving Messages", desc: "Patients can now message your WhatsApp" },
-                  ].map((item) => (
-                    <div key={item.step} className="flex gap-3 p-3 rounded-lg bg-muted/50">
-                      <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">{item.step}</div>
-                      <div>
-                        <p className="font-medium text-sm">{item.title}</p>
-                        <p className="text-xs text-muted-foreground">{item.desc}</p>
-                      </div>
+                <div className="border-t pt-4">
+                  <Button variant="ghost" size="sm" onClick={() => setShowWhatsappGuide(!showWhatsappGuide)} className="w-full flex items-center justify-between px-2">
+                    <span className="text-sm font-medium">Step-by-Step Guide</span>
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", showWhatsappGuide && "rotate-180")} />
+                  </Button>
+                  {showWhatsappGuide && (
+                    <div className="mt-4 space-y-3">
+                      {[
+                        { step: "1", title: "Go to Meta Developer Console", desc: "Select or create your app at developers.facebook.com" },
+                        { step: "2", title: "Configure Webhooks", desc: "Add WhatsApp → Configuration. Paste URL and Verify Token." },
+                        { step: "3", title: "Subscribe to Messages", desc: "Click 'Manage' under Webhook fields and subscribe to 'messages'." },
+                        { step: "4", title: "Get Permanent Token", desc: "Create a System User with 'whatsapp_business_messaging' permissions." },
+                      ].map((s) => (
+                        <div key={s.step} className="flex gap-3 text-sm">
+                          <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center font-bold text-xs text-blue-700">{s.step}</div>
+                          <div><span className="font-medium">{s.title}:</span> <span className="text-muted-foreground">{s.desc}</span></div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="widget" className="space-y-6">
