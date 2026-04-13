@@ -1371,6 +1371,69 @@ ON CONFLICT (workspace_id) DO NOTHING;`
     setTimeout(() => setSaving(null), 500);
   }
 
+  const handleTestMetaConnection = async () => {
+    setTestingMeta(true)
+    try {
+      const res = await fetch('/api/whatsapp/test-meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone_id: phoneNumberId, token: whatsappToken })
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast?.({ title: "Connection Successful", description: "Meta API credentials are valid." })
+      } else {
+        toast?.({ title: "Connection Failed", description: data.error, variant: "destructive" })
+      }
+    } catch (err) {
+      toast?.({ title: "Error", description: "Failed to test connection", variant: "destructive" })
+    }
+    setTestingMeta(false)
+  }
+
+  const pollWhatsAppStatus = async () => {
+    if (whatsappMethod !== 'qr') return
+    try {
+      const res = await fetch('/api/whatsapp/status')
+      const data = await res.json()
+      setWhatsappStatus(data.status)
+      setWhatsappConnectedNumber(data.phone || "")
+      
+      if (data.status === 'qr') {
+        const qrRes = await fetch('/api/whatsapp/qr')
+        const qrData = await qrRes.json()
+        setWhatsappQR(qrData.qr)
+      } else {
+        setWhatsappQR(null)
+      }
+    } catch (err) {
+      console.error('Polling error:', err)
+    }
+  }
+
+  useEffect(() => {
+    let interval: any
+    if (whatsappEnabled && whatsappMethod === 'qr') {
+      pollWhatsAppStatus()
+      interval = setInterval(pollWhatsAppStatus, 3000)
+    }
+    return () => clearInterval(interval)
+  }, [whatsappEnabled, whatsappMethod])
+
+  const handleDisconnectQR = async () => {
+    try {
+      const res = await fetch(`${whatsappServiceUrl}/disconnect`, { method: 'POST' })
+      if (res.ok) {
+        setWhatsappStatus('disconnected')
+        setWhatsappQR(null)
+        setWhatsappConnectedNumber("")
+        await handleSaveWhatsAppConfig()
+      }
+    } catch (err) {
+      toast?.({ title: "Error", description: "Failed to disconnect", variant: "destructive" })
+    }
+  }
+
   const copyEmbedCode = () => {
     navigator.clipboard.writeText(`<script src="https://widget.drdent.ai/embed.js?token=${embedToken || 'your-token'}"></script>`)
   }
