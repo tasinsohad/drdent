@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS widget_config (
 
 CREATE TABLE IF NOT EXISTS whatsapp_config (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    workspace_id UUID UNIQUE REFERENCES workspaces(id) ON DELETE CASCADE,
     phone_number_id TEXT,
     whatsapp_business_id TEXT,
     access_token_encrypted TEXT,
