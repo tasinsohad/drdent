@@ -31,30 +31,64 @@ const client = new Client({
     remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1034227922-alpha.html',
   },
   puppeteer: {
-    // Portability: Use system path if provided (for local Win), 
-    // otherwise let puppeteer find its own (default in Linux/Railway)
     executablePath: process.env.CHROME_PATH || (process.platform === 'win32' ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' : '/usr/bin/google-chrome-stable'),
+    headless: true,
     args: [
-      '--no-sandbox', 
-      '--disable-setuid-sandbox', 
-      '--disable-extensions', 
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
       '--disable-gpu',
       '--no-first-run',
       '--no-zygote',
       '--single-process',
       '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process',
       '--window-size=1920,1080',
+      '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
       '--disable-web-security',
-      '--allow-running-insecure-content'
+      '--allow-running-insecure-content',
+      '--disable-extensions',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--hide-scrollbars',
+      '--ignore-certificate-errors',
+      '--ignore-ssl-errors',
+      '--ignore-certificate-errors-spki-list',
+      '--disable-component-extensions-with-background-pages',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-component-update',
+      '--disable-default-network-ed',
+      '--disable-domain-reliability',
+      '--disable-features=NetworkService,NetworkServiceInProcess',
+      '--disable-hang-monitor',
+      '--disable-ipc-flooding-protection',
+      '--disable-popup-blocking',
+      '--disable-prompt-on-repost',
+      '--disable-renderer-backgrounding',
+      '--disable-site-isolation-trials',
+      '--disable-speech-api',
+      '--disable-web-gl',
+      '--enable-features=NetworkService,NetworkServiceInProcess',
+      '--exclude-switches',
+      '--enable-automation',
+      '--invert-gpu',
+      '--safebrowsing-disable-auto-update',
+      '--password-store=basic',
+      '--use-mock-keychain'
     ],
-    headless: true,
-    defaultViewport: { width: 1920, height: 1080 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+    defaultViewport: { width: 1920, height: 1080 }
   },
   restartOnAuthFailure: true,
-  retryDelay: 3000,
-  maxRetries: 5
+  retryDelay: 5000,
+  maxRetries: 10,
+  takeOnlineOnInit: true
 });
 
 // Sanitize App URL
@@ -66,9 +100,14 @@ const getBaseUrl = () => {
 client.on('qr', (qr) => {
   clientState = 'qr';
   qrcode.toDataURL(qr, (err, url) => {
+    if (err) {
+      console.error('Error generating QR image:', err);
+      return;
+    }
     lastQR = url;
+    console.log('QR Generated successfully, length:', url.length);
   });
-  console.log('QR Received');
+  console.log('QR Received - new scan required');
 });
 
 client.on('ready', () => {
