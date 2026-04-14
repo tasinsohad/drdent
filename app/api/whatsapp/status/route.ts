@@ -25,28 +25,41 @@ export async function GET(req: NextRequest) {
     if (methodToCheck === 'qr') {
       const isVercel = process.env.VERCEL === '1' || process.env.NEXT_PUBLIC_VERCEL_ENV;
       const defaultUrl = isVercel ? '' : 'http://localhost:3001';
-      const serviceUrl = config.service_url || process.env.WHATSAPP_SERVICE_URL || defaultUrl;
+      let serviceUrl = config.service_url || process.env.WHATSAPP_SERVICE_URL || defaultUrl;
       
       if (!serviceUrl) {
         return NextResponse.json({ 
           status: 'disconnected', 
-          error: 'No service URL configured. On Vercel, a public URL is required.', 
+          error: 'No service URL configured.', 
           method: 'qr' 
         })
       }
 
+      // Cleanup URL (strip trailing slash)
+      serviceUrl = serviceUrl.replace(/\/$/, '');
+
       // Proxy to whatsapp-service
       try {
-        const res = await fetch(`${serviceUrl}/status`)
-        const data = await res.json()
+        console.log(`[WhatsApp Proxy] Pinging: ${serviceUrl}/status`);
+        const res = await fetch(`${serviceUrl}/status`, { 
+          cache: 'no-store',
+          signal: AbortSignal.timeout(5000) 
+        });
+        
+        if (!res.ok) {
+          throw new Error(`Service responded with status: ${res.status}`);
+        }
+        
+        const data = await res.json();
         return NextResponse.json({ ...data, method: 'qr' })
       } catch (err: any) {
+        console.error(`[WhatsApp Proxy Error] ${err.message}`);
         return NextResponse.json({ 
           status: 'disconnected', 
-          error: 'Service Unavailable', 
+          error: err.message || 'Service Unavailable', 
           method: 'qr', 
           serviceUrl,
-          isLocalhost: serviceUrl.includes('localhost') 
+          timestamp: new Date().toISOString()
         })
       }
     } else {
