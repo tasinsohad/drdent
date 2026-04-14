@@ -28,7 +28,7 @@ const client = new Client({
   }),
   webVersionCache: {
     type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1012170944-alpha.html',
+    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1034227922-alpha.html',
   },
   puppeteer: {
     // Portability: Use system path if provided (for local Win), 
@@ -44,12 +44,17 @@ const client = new Client({
       '--no-zygote',
       '--single-process',
       '--disable-blink-features=AutomationControlled',
-      '--window-size=1920,1080'
+      '--window-size=1920,1080',
+      '--disable-web-security',
+      '--allow-running-insecure-content'
     ],
     headless: true,
     defaultViewport: { width: 1920, height: 1080 },
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
-  }
+  },
+  restartOnAuthFailure: true,
+  retryDelay: 3000,
+  maxRetries: 5
 });
 
 // Sanitize App URL
@@ -81,9 +86,11 @@ client.on('loading_screen', (percent, message) => {
   console.log('Loading:', percent, message);
 });
 
-client.on('auth_failure', (msg) => {
-  clientState = 'disconnected';
-  console.error('Auth failure', msg);
+client.on('change_state', (state) => {
+  console.log('Client state changed:', state);
+  if (state === 'connected') {
+    clientState = 'connecting';
+  }
 });
 
 client.on('disconnected', (reason) => {
@@ -91,6 +98,40 @@ client.on('disconnected', (reason) => {
   lastQR = null;
   connectedNumber = null;
   console.log('Client was logged out', reason);
+  
+  // Auto-reinitialize after disconnect
+  console.log('Attempting to reinitialize in 3 seconds...');
+  setTimeout(() => {
+    client.initialize().catch(err => {
+      console.error('Failed to reinitialize:', err);
+    });
+  }, 3000);
+});
+
+client.on('failure', (error) => {
+  console.error('Client failure:', error);
+  clientState = 'disconnected';
+});
+
+client.on('auth_failure', (msg) => {
+  clientState = 'disconnected';
+  console.error('Auth failure - switching to QR state:', msg);
+  clientState = 'qr';
+});
+
+client.on('disconnected', (reason) => {
+  clientState = 'disconnected';
+  lastQR = null;
+  connectedNumber = null;
+  console.log('Client was logged out', reason);
+  
+  // Auto-reinitialize after disconnect
+  console.log('Attempting to reinitialize...');
+  setTimeout(() => {
+    client.initialize().catch(err => {
+      console.error('Failed to reinitialize:', err);
+    });
+  }, 3000);
 });
 
 // Inbound message handler
