@@ -52,3 +52,18 @@ In your Railway service, go to the **Variables** tab and add the following:
 
 > [!NOTE]
 > For a more stable and official connection, consider the **Meta Official API** method also available in the settings.
+
+---
+
+## 🛠️ Troubleshooting: "Save Failed" (Column Missing)
+If you see an error saying `connection_method` column not found, run this in your **Supabase SQL Editor**:
+
+```sql
+ALTER TABLE whatsapp_config 
+ADD COLUMN IF NOT EXISTS connection_method TEXT DEFAULT 'meta',
+ADD COLUMN IF NOT EXISTS service_url TEXT,
+ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'disconnected',
+ADD COLUMN IF NOT EXISTS phone_number TEXT;
+
+NOTIFY pgrst, 'reload schema';
+```
