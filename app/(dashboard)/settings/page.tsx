@@ -1042,6 +1042,8 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const [testingMeta, setTestingMeta] = useState(false)
   const [showWhatsappGuide, setShowWhatsappGuide] = useState(false)
   const [showQRGuide, setShowQRGuide] = useState(false)
+  const [whatsappError, setWhatsappError] = useState<string | null>(null)
+  const [isPolling, setIsPolling] = useState(false)
 
   const [saving, setSaving] = useState<string | null>(null)
   const [openDocSection, setOpenDocSection] = useState<string | null>("getting-started")
@@ -1401,11 +1403,13 @@ ON CONFLICT (workspace_id) DO NOTHING;`
 
   const pollWhatsAppStatus = async () => {
     if (whatsappMethod !== 'qr') return
+    setIsPolling(true)
     try {
       const res = await fetch('/api/whatsapp/status?method=qr')
       const data = await res.json()
       setWhatsappStatus(data.status)
       setWhatsappConnectedNumber(data.phone || "")
+      setWhatsappError(data.error || null)
       
       if (data.status === 'qr') {
         const qrRes = await fetch('/api/whatsapp/qr')
@@ -1414,8 +1418,11 @@ ON CONFLICT (workspace_id) DO NOTHING;`
       } else {
         setWhatsappQR(null)
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Polling error:', err)
+      setWhatsappError(err.message || "Failed to reach internal API")
+    } finally {
+      setIsPolling(false)
     }
   }
 
@@ -2075,6 +2082,11 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                         <p className="text-xs text-muted-foreground mt-1">
                           The WhatsApp bridge service is not active at the configured URL.
                         </p>
+                        {whatsappError && (
+                          <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded text-[10px] text-red-600 dark:text-red-400 font-mono break-all">
+                            Error: {whatsappError}
+                          </div>
+                        )}
                         {!whatsappServiceUrl ? (
                           <p className="text-[10px] text-amber-600 font-medium mt-2">
                             ⚠️ Please enter your Service URL below (e.g., http://localhost:3001)
@@ -2091,8 +2103,9 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                           </div>
                         ) : null}
                       </div>
-                      <Button variant="outline" size="sm" onClick={pollWhatsAppStatus}>
-                        <RefreshCw className="h-4 w-4 mr-2" /> Retry Connection
+                      <Button variant="outline" size="sm" onClick={pollWhatsAppStatus} disabled={isPolling}>
+                        {isPolling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                        Retry Connection
                       </Button>
                     </div>
                   ) : (
