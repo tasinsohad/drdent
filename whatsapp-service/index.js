@@ -26,6 +26,10 @@ const client = new Client({
   authStrategy: new LocalAuth({
     dataPath: './session'
   }),
+  webVersionCache: {
+    type: 'remote',
+    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1012170944-alpha.html',
+  },
   puppeteer: {
     // Portability: Use system path if provided (for local Win), 
     // otherwise let puppeteer find its own (default in Linux/Railway)
@@ -38,9 +42,12 @@ const client = new Client({
       '--disable-gpu',
       '--no-first-run',
       '--no-zygote',
-      '--single-process'
+      '--single-process',
+      '--disable-blink-features=AutomationControlled',
+      '--window-size=1920,1080'
     ],
     headless: true,
+    defaultViewport: { width: 1920, height: 1080 },
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
   }
 });
