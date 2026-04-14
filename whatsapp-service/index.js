@@ -91,6 +91,15 @@ client.on('message', async (msg) => {
 });
 
 // Endpoints
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Dr. Dent WhatsApp Bridge',
+    status: 'online',
+    client_state: clientState,
+    version: '1.0.0'
+  });
+});
+
 app.get('/status', (req, res) => {
   res.json({
     status: clientState,
@@ -131,5 +140,9 @@ client.initialize().catch(err => {
 });
 
 app.listen(port, () => {
-  console.log(`WhatsApp Service listening at http://localhost:${port}`);
+  console.log('====================================');
+  console.log(`🚀 Dr. Dent WhatsApp Service active`);
+  console.log(`📍 URL: http://localhost:${port}`);
+  console.log(`🔗 App URL: ${process.env.NEXT_PUBLIC_APP_URL || 'Not configured'}`);
+  console.log('====================================');
 });

@@ -17,7 +17,7 @@ const nextConfig = {
         ],
       },
       {
-        source: '/((?!widget).*)', // All paths except /widget
+        source: '/((?!widget$).*)', // Explicitly exclude /widget from global headers
         headers: [
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
           {

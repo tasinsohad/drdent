@@ -1041,6 +1041,7 @@ ON CONFLICT (workspace_id) DO NOTHING;`
   const [whatsappConnectedNumber, setWhatsappConnectedNumber] = useState("")
   const [testingMeta, setTestingMeta] = useState(false)
   const [showWhatsappGuide, setShowWhatsappGuide] = useState(false)
+  const [showQRGuide, setShowQRGuide] = useState(false)
 
   const [saving, setSaving] = useState<string | null>(null)
   const [openDocSection, setOpenDocSection] = useState<string | null>("getting-started")
@@ -2126,6 +2127,67 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                   <Button className="w-full bg-blue-600" onClick={handleSaveWhatsAppConfig} disabled={saving === 'whatsapp'}>
                     {saving === 'whatsapp' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : "Save QR Settings"}
                   </Button>
+                </div>
+
+                <div className="border-t pt-4">
+                  <Button variant="ghost" size="sm" onClick={() => setShowQRGuide(!showQRGuide)} className="w-full flex items-center justify-between px-2">
+                    <span className="text-sm font-medium">Railway (Runway) Setup Guide</span>
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", showQRGuide && "rotate-180")} />
+                  </Button>
+                  
+                  {showQRGuide && (
+                    <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded-lg">
+                        <p className="text-[11px] text-blue-800 dark:text-blue-300 leading-relaxed">
+                          Follow these steps to deploy your <strong>whatsapp-service</strong> folder to Railway (the platform for persistent background tasks).
+                        </p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex gap-3 text-xs">
+                          <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white tracking-tighter">1</div>
+                          <div className="space-y-1">
+                            <p className="font-semibold">Create a Railway Project</p>
+                            <p className="text-muted-foreground">Go to <a href="https://railway.app" target="_blank" className="text-blue-600 underline">railway.app</a> and create a new project from your GitHub repo.</p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3 text-xs">
+                          <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white tracking-tighter">2</div>
+                          <div className="space-y-1">
+                            <p className="font-semibold">Configure Root Directory</p>
+                            <p className="text-muted-foreground">Set the <strong>Root Directory</strong> to <code>whatsapp-service</code> in the project settings.</p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3 text-xs">
+                          <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white tracking-tighter">3</div>
+                          <div className="space-y-1">
+                            <p className="font-semibold">Add Environment Variables</p>
+                            <p className="text-muted-foreground mb-2">Copy and paste these into Railway Variables:</p>
+                            <div className="grid gap-2">
+                              <div className="flex items-center justify-between p-2 bg-muted rounded border text-[10px] font-mono">
+                                <span>NEXT_PUBLIC_APP_URL</span>
+                                <Button variant="ghost" size="sm" className="h-5 px-1.5" onClick={() => navigator.clipboard.writeText(typeof window !== 'undefined' ? window.location.origin : '')}><Copy className="h-3 w-3" /></Button>
+                              </div>
+                              <div className="flex items-center justify-between p-2 bg-muted rounded border text-[10px] font-mono">
+                                <span>WHATSAPP_SERVICE_API_KEY</span>
+                                <Button variant="ghost" size="sm" className="h-5 px-1.5" onClick={() => navigator.clipboard.writeText('default-secret')}><Copy className="h-3 w-3" /></Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3 text-xs">
+                          <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white tracking-tighter">4</div>
+                          <div className="space-y-1">
+                            <p className="font-semibold">Link the Service</p>
+                            <p className="text-muted-foreground">Once deployed, copy the Public URL from Railway and paste it into the <strong>Service URL</strong> field above.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
