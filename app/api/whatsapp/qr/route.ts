@@ -8,6 +8,7 @@ export async function GET() {
     const { data: config } = await supabase
       .from('whatsapp_config')
       .select('service_url, connection_method')
+      .order('updated_at', { ascending: false })
       .limit(1)
       .single()
 
