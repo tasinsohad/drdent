@@ -37,7 +37,8 @@ const client = new Client({
       '--disable-dev-shm-usage',
       '--disable-gpu',
       '--no-first-run',
-      '--no-zygote'
+      '--no-zygote',
+      '--single-process'
     ],
     headless: true,
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
@@ -190,14 +191,19 @@ app.post('/disconnect', async (req, res) => {
   }
 });
 
-client.initialize().catch(err => {
-  console.error('Failed to initialize client:', err);
-});
-
 app.listen(port, () => {
   console.log('====================================');
   console.log(`🚀 Dr. Dent WhatsApp Service active`);
   console.log(`📍 URL: http://localhost:${port}`);
-  console.log(`🔗 App URL: ${process.env.NEXT_PUBLIC_APP_URL || 'Not configured'}`);
+  console.log(`🔗 App URL: ${getBaseUrl() || 'Not configured'}`);
   console.log('====================================');
+  
+  // Initialize WhatsApp AFTER the server is listening
+  // This helps Railway health checks pass immediately
+  console.log('Initializing WhatsApp in 5 seconds...');
+  setTimeout(() => {
+    client.initialize().catch(err => {
+      console.error('Failed to initialize client:', err);
+    });
+  }, 5000);
 });
