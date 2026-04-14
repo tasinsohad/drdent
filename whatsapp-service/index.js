@@ -30,10 +30,24 @@ const client = new Client({
     // Portability: Use system path if provided (for local Win), 
     // otherwise let puppeteer find its own (default in Linux/Railway)
     executablePath: process.env.CHROME_PATH || (process.platform === 'win32' ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' : undefined),
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-extensions'],
+    args: [
+      '--no-sandbox', 
+      '--disable-setuid-sandbox', 
+      '--disable-extensions', 
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-zygote'
+    ],
     headless: true
   }
 });
+
+// Sanitize App URL
+const getBaseUrl = () => {
+  const url = process.env.NEXT_PUBLIC_APP_URL || '';
+  return url.replace(/\/$/, ''); // Remove trailing slash
+};
 
 client.on('qr', (qr) => {
   clientState = 'qr';
@@ -51,7 +65,11 @@ client.on('ready', () => {
 });
 
 client.on('authenticated', () => {
-  console.log('Authenticated');
+  console.log('Authenticated ✅');
+});
+
+client.on('loading_screen', (percent, message) => {
+  console.log('Loading:', percent, message);
 });
 
 client.on('auth_failure', (msg) => {
@@ -66,14 +84,38 @@ client.on('disconnected', (reason) => {
   console.log('Client was logged out', reason);
 });
 
-// Incoming message handler
+// Inbound message handler
 client.on('message', async (msg) => {
+  handleMessage(msg, 'incoming');
+});
+
+// Outbound/Self message handler (for testing sync)
+client.on('message_create', async (msg) => {
+  if (msg.fromMe) {
+    console.log('[Self] Message detected:', msg.body);
+  }
+  // Only process messages from others for AI
+  if (!msg.fromMe) {
+    // Already handled by 'message' event for most cases, 
+    // but some versions prefer processing here.
+  }
+});
+
+async function handleMessage(msg, type) {
   if (msg.from.endsWith('@c.us')) {
-    console.log('Received message from:', msg.from, msg.body);
+    console.log(`[${type}] Message from ${msg.from}: ${msg.body}`);
     
     // Call Next.js AI handler
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/webhook/whatsapp/qr-bridge`, {
+      const baseUrl = getBaseUrl();
+      if (!baseUrl) {
+        console.error('NEXT_PUBLIC_APP_URL is not configured');
+        return;
+      }
+
+      console.log(`[Proxy] Sending to: ${baseUrl}/api/webhook/whatsapp/qr-bridge`);
+      
+      const response = await fetch(`${baseUrl}/api/webhook/whatsapp/qr-bridge`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -86,15 +128,21 @@ client.on('message', async (msg) => {
         })
       });
       
+      if (!response.ok) {
+        console.error(`Next.js AI responded with ${response.status}`);
+        return;
+      }
+
       const data = await response.json();
       if (data.reply) {
+        console.log(`[AI Reply] ${data.reply}`);
         client.sendMessage(msg.from, data.reply);
       }
     } catch (err) {
       console.error('Error calling Next.js AI:', err);
     }
   }
-});
+}
 
 // Endpoints
 app.get('/', (req, res) => {
