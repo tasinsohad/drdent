@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -272,7 +273,7 @@ export default function DashboardLayout({
         <div className="flex h-16 items-center justify-between px-4 border-b">
           <Link href="/conversations" className="flex items-center gap-2" aria-label="Dr. Dent — go to conversations">
             <div className="w-8 h-8 shrink-0 relative overflow-hidden rounded-lg bg-white shadow-sm border border-slate-200" aria-hidden="true">
-              <img src="/logo.png" alt="Dr. Dent" className="object-cover w-full h-full" />
+              <Image src="/logo.png" alt="Dr. Dent" width={32} height={32} className="object-cover w-full h-full" />
             </div>
             {sidebarOpen && <span className="font-semibold hidden sm:block">Dr. Dent</span>}
           </Link>

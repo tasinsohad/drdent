@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -163,11 +163,7 @@ export default function PatientsKanbanPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  useEffect(() => {
-    loadPatients()
-  }, [])
-
-  const loadPatients = async () => {
+  const loadPatients = useCallback(async () => {
     setLoading(true)
     try {
       const data = await getPatients()
@@ -182,7 +178,11 @@ export default function PatientsKanbanPage() {
       toast({ title: "Error", description: "Failed to load patients", variant: "error" })
     }
     setLoading(false)
-  }
+  }, [toast])
+
+  useEffect(() => {
+    loadPatients()
+  }, [loadPatients])
 
   const columns = useMemo(() => {
     const list = patients.filter(p => 

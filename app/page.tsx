@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -141,7 +142,7 @@ export default function Home() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="w-9 h-9 shrink-0 relative overflow-hidden rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
-              <img src="/logo.png" alt="Dr. Dent Logo" className="object-cover w-full h-full" />
+                <Image src="/logo.png" alt="Dr. Dent Logo" width={36} height={36} className="object-cover w-full h-full" />
             </div>
             <span className="font-bold text-lg text-slate-800 dark:text-slate-100">Dr. Dent</span>
           </Link>
@@ -541,7 +542,7 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 shrink-0 relative overflow-hidden rounded-lg bg-white">
-                <img src="/logo.png" alt="Dr. Dent Logo" className="object-cover w-full h-full" />
+                <Image src="/logo.png" alt="Dr. Dent Logo" width={36} height={36} className="object-cover w-full h-full" />
               </div>
               <span className="font-bold text-white text-xl">Dr. Dent</span>
             </div>
