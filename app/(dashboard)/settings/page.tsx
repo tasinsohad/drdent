@@ -615,6 +615,9 @@ CREATE TABLE IF NOT EXISTS system_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Ensure column exists if table was created without it
+ALTER TABLE system_logs ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE;
+
 -- AI Configuration per workspace
 CREATE TABLE ai_configs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
