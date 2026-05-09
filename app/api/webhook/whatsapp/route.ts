@@ -58,13 +58,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('📥 WhatsApp WEBHOOK Received:', JSON.stringify(body, null, 2))
     
-    // Attempt to log without blocking
+    // Attempt to log without blocking (don't fail if table doesn't exist)
     supabase.from('system_logs').insert({
       source: 'whatsapp_webhook',
       level: 'info',
       message: 'Webhook POST received',
       details: body
-    }).then()
+    }).then().catch(() => {})
 
     const entry = body.entry?.[0]
     const changes = entry?.changes?.[0]
@@ -247,14 +247,21 @@ export async function POST(request: NextRequest) {
         .eq('workspace_id', workspaceId)
         .single()
 
-      console.log('📋 WhatsApp config:', waConfig ? 'found' : 'not found', 'enabled:', waConfig?.enabled)
+      console.log('📋 WhatsApp config:', waConfig ? 'found' : 'not found', 'enabled:', waConfig?.enabled, 'hasToken:', !!(waConfig?.access_token_encrypted || waConfig?.access_token))
 
       if (waConfigError) {
         console.error('❌ WhatsApp config error:', waConfigError.message)
       }
 
+      const canSendReply = waConfig?.enabled && (waConfig.access_token_encrypted || waConfig.access_token)
+      
+      if (!canSendReply) {
+        console.warn('⚠️ WhatsApp auto-reply disabled or not configured. Message stored but no reply will be sent.')
+        console.warn('   To enable: Set whatsapp_config.enabled = true and configure access_token_encrypted + phone_number_id')
+      }
+
       // Only proceed if WhatsApp is enabled AND has token
-      if (waConfig?.enabled && (waConfig.access_token_encrypted || waConfig.access_token)) {
+      if (canSendReply) {
         console.log('✅ WhatsApp is enabled, attempting AI response...')
         
         // Get AI config
@@ -323,7 +330,7 @@ export async function POST(request: NextRequest) {
               level: 'error',
               message: 'AI generation error',
               details: { error: aiErr.message }
-            }).then()
+            }).then().catch(() => {})
             aiErrorOccurred = true
           }
         }
@@ -374,7 +381,7 @@ export async function POST(request: NextRequest) {
             level: 'info',
             message: 'Reply sent successfully',
             details: { reply }
-          }).then()
+          }).then().catch(() => {})
         } else {
           const waData = await waRes.json()
           console.error('❌ Meta API error FULL:', JSON.stringify(waData, null, 2))
@@ -384,14 +391,14 @@ export async function POST(request: NextRequest) {
             level: 'error',
             message: 'Meta API Send Error',
             details: waData
-          }).then()
+          }).then().catch(() => {})
           
           if (waData.error?.message?.includes('access token')) {
             console.error('🛑 ACTION REQUIRED: The WhatsApp Access Token appears to be invalid or expired. Please update it in Settings.')
           }
         }
       } else {
-        console.error('❌ Cannot send - missing phone_number_id or token')
+        console.error('❌ Cannot send - missing phone_number_id or token. Check WhatsApp configuration in dashboard.')
       }
 
       // Save assistant message to DB

@@ -148,6 +148,17 @@ CREATE TABLE IF NOT EXISTS whatsapp_config (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- System Logs
+CREATE TABLE IF NOT EXISTS system_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    source TEXT NOT NULL,
+    level TEXT DEFAULT 'info',
+    message TEXT NOT NULL,
+    details JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Follow-up Configuration
 CREATE TABLE IF NOT EXISTS followup_configs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
