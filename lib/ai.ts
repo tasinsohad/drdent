@@ -139,8 +139,10 @@ export async function generateAIResponse(
     }
 
     const message = data.choices[0].message
+    console.log('🤖 AI response message:', JSON.stringify(message))
     
     if (message.tool_calls) {
+      console.log('🛠️ Tool calls found:', message.tool_calls.length)
       return { toolCalls: message.tool_calls }
     }
     return { text: message.content }

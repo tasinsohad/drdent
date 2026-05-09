@@ -58,30 +58,30 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('📥 WhatsApp WEBHOOK Received:', JSON.stringify(body, null, 2))
 
-    // 1. Get/Initialize Workspace - use ANY existing workspace, don't create new
-    let workspaceId = ''
+    let workspaceId: string | null = null
     const { data: workspace, error: wsError } = await supabase
       .from('workspaces')
       .select('id')
       .limit(1)
       .single()
 
-    if (wsError || !workspace) {
-      console.log('🛠️ No workspace found at all - this should not happen if migration ran')
-      workspaceId = ''
-    } else {
+    if (!wsError && workspace) {
       workspaceId = workspace.id
       console.log('🏢 Using existing workspace:', workspaceId)
     }
 
-    // Attempt to log without blocking
-    await supabase.from('system_logs').insert({
-      workspace_id: workspaceId,
-      source: 'whatsapp_webhook',
-      level: 'info',
-      message: 'Webhook POST received',
-      details: body
-    })
+    // Attempt to log - don't let logging failure crash the webhook
+    try {
+      await supabase.from('system_logs').insert({
+        workspace_id: workspaceId,
+        source: 'whatsapp_webhook',
+        level: 'info',
+        message: 'Webhook POST received',
+        details: body
+      })
+    } catch (logErr) {
+      console.error('Failed to write initial log:', logErr)
+    }
 
     const entry = body.entry?.[0]
     const changes = entry?.changes?.[0]
