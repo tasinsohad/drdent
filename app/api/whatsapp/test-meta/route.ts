@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const res = await fetch(`https://graph.facebook.com/v19.0/${phone_id}`, {
+    const res = await fetch(`https://graph.facebook.com/v20.0/${phone_id}`, {
       headers: {
         'Authorization': `Bearer ${rawToken}`
       }

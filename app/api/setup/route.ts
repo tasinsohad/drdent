@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS messages (
     role TEXT NOT NULL,
     content TEXT NOT NULL,
     channel TEXT DEFAULT 'widget',
+    wa_id TEXT,
     tokens_used INTEGER,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

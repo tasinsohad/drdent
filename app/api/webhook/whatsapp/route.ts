@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       console.log(`💬 Processing message [${waId}] from ${from}: "${messageText}"`)
 
       // 0. Deduplication - Check if this message was already processed
-      const { data: alreadyProcessed } = await supabase
+      const { data: alreadyProcessed, error: dedupeError } = await supabase
         .from('messages')
         .select('id')
         .eq('wa_id', waId)
@@ -87,6 +87,22 @@ export async function POST(request: NextRequest) {
         console.log(`⏭️ Message ${waId} already processed, returning OK.`)
         // Important: Stop here for this message, don't proceed to AI or fallback
         continue
+      }
+      
+      if (dedupeError && dedupeError.message.includes('wa_id')) {
+        // Fallback deduplication if wa_id column is missing
+        const { data: recentMsg } = await supabase
+          .from('messages')
+          .select('id')
+          .eq('content', messageText)
+          .eq('channel', 'whatsapp')
+          .gte('timestamp', new Date(parseInt(msgTimestamp) * 1000 - 10000).toISOString())
+          .maybeSingle()
+          
+        if (recentMsg) {
+          console.log(`⏭️ Message already processed (fallback deduplication), returning OK.`)
+          continue
+        }
       }
 
       if (!from || !messageText) {
@@ -321,7 +337,7 @@ export async function POST(request: NextRequest) {
         
         console.log(`📤 sending to Meta [${sendConfig.phone_number_id}] using token: ${rawToken.slice(0, 5)}...${rawToken.slice(-5)} (len: ${rawToken.length})`)
 
-        const waRes = await fetch(`https://graph.facebook.com/v17.0/${sendConfig.phone_number_id}/messages`, {
+        const waRes = await fetch(`https://graph.facebook.com/v20.0/${sendConfig.phone_number_id}/messages`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${rawToken}`,
