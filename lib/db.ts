@@ -507,3 +507,18 @@ export async function getAuditLogs(limit: number = 50) {
   if (error) return []
   return data
 }
+
+export async function getSystemLogs(limit: number = 100) {
+  const workspaceId = await getWorkspaceId()
+  if (!workspaceId) return []
+  
+  const { data, error } = await supabase
+    .from('system_logs')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  
+  if (error) return []
+  return data
+}

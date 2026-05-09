@@ -57,6 +57,14 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     console.log('📥 WhatsApp WEBHOOK Received:', JSON.stringify(body, null, 2))
+    
+    // Attempt to log without blocking
+    supabase.from('system_logs').insert({
+      source: 'whatsapp_webhook',
+      level: 'info',
+      message: 'Webhook POST received',
+      details: body
+    }).then()
 
     const entry = body.entry?.[0]
     const changes = entry?.changes?.[0]
@@ -309,6 +317,13 @@ export async function POST(request: NextRequest) {
             }
           } catch (aiErr: any) {
             console.error('❌ AI generation error:', aiErr.message)
+            supabase.from('system_logs').insert({
+              workspace_id: workspaceId,
+              source: 'whatsapp_webhook',
+              level: 'error',
+              message: 'AI generation error',
+              details: { error: aiErr.message }
+            }).then()
             aiErrorOccurred = true
           }
         }
@@ -353,9 +368,23 @@ export async function POST(request: NextRequest) {
 
         if (waRes.ok) {
           console.log('✅ Reply sent to WhatsApp successfully!')
+          supabase.from('system_logs').insert({
+            workspace_id: workspaceId,
+            source: 'whatsapp_webhook',
+            level: 'info',
+            message: 'Reply sent successfully',
+            details: { reply }
+          }).then()
         } else {
           const waData = await waRes.json()
           console.error('❌ Meta API error FULL:', JSON.stringify(waData, null, 2))
+          supabase.from('system_logs').insert({
+            workspace_id: workspaceId,
+            source: 'whatsapp_webhook',
+            level: 'error',
+            message: 'Meta API Send Error',
+            details: waData
+          }).then()
           
           if (waData.error?.message?.includes('access token')) {
             console.error('🛑 ACTION REQUIRED: The WhatsApp Access Token appears to be invalid or expired. Please update it in Settings.')
@@ -383,6 +412,12 @@ export async function POST(request: NextRequest) {
     return new NextResponse('OK', { status: 200 })
   } catch (error: any) {
     console.error('❌ Global Webhook Error:', error.message)
+    await supabase.from('system_logs').insert({
+      source: 'whatsapp_webhook',
+      level: 'error',
+      message: 'Global Webhook Error',
+      details: { error: error.message, stack: error.stack }
+    })
     return new NextResponse('Internal Server Error', { status: 500 })
   }
 }

@@ -177,6 +177,16 @@ CREATE TABLE IF NOT EXISTS analytics (
     UNIQUE(workspace_id, date)
 );
 
+CREATE TABLE IF NOT EXISTS system_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    source TEXT NOT NULL,
+    level TEXT DEFAULT 'info',
+    message TEXT NOT NULL,
+    details JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS followup_configs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -206,6 +216,7 @@ CREATE POLICY "Allow all on conversations" ON conversations FOR ALL USING (true)
 CREATE POLICY "Allow all on messages" ON messages FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on popup_configs" ON widget_config FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on followup_configs" ON followup_configs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on system_logs" ON system_logs FOR ALL USING (true) WITH CHECK (true);
 
 -- Insert default configurations for the workspace
 INSERT INTO ai_configs (workspace_id)

@@ -42,12 +42,13 @@ import {
   Download,
   Trash2,
   AlertCircle,
+  Terminal,
 } from "lucide-react"
 import { useAppStore } from "@/lib/store"
 import { supabase, testSupabaseConnection } from "@/lib/supabase-client"
 import { useToast } from "@/components/ui/toaster"
 import { cn } from "@/lib/utils"
-import { getFollowupConfig, saveFollowupConfig, getAuditLogs, getAIConfig, getWidgetConfig, getWhatsAppConfig } from "@/lib/db"
+import { getFollowupConfig, saveFollowupConfig, getAuditLogs, getAIConfig, getWidgetConfig, getWhatsAppConfig, getSystemLogs } from "@/lib/db"
 
 const docSections = [
   {
@@ -240,31 +241,50 @@ CREATE TABLE IF NOT EXISTS widget_config (
     icon: MessageCircle,
     content: (
       <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">Connect WhatsApp to receive patient messages directly.</p>
-        <div className="space-y-3">
-          {[
-            { step: "1", title: "Create Meta Developer Account", desc: "Go to developers.facebook.com and create an app." },
-            { step: "2", title: "Add WhatsApp Product", desc: "In your app dashboard, add WhatsApp from the products menu." },
-            { step: "3", title: "Get Credentials", desc: "Navigate to WhatsApp → API Setup to get Phone Number ID, Business Account ID, and Access Token." },
-            { step: "4", title: "Configure in Dr. Dent", desc: "Go to Settings → WhatsApp and enter your credentials." },
-            { step: "5", title: "Set Up Webhook", desc: "Configure a webhook in Supabase Edge Functions for real-time message handling." },
-          ].map((item) => (
-            <div key={item.step} className="flex gap-3 p-3 rounded-lg bg-muted/50">
-              <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">
-                {item.step}
-              </div>
-              <div>
-                <p className="font-medium text-sm">{item.title}</p>
-                <p className="text-xs text-muted-foreground">{item.desc}</p>
-              </div>
+        <p className="text-sm text-muted-foreground">Follow these detailed steps to fully integrate your app with the Meta WhatsApp Business API.</p>
+        <div className="space-y-4">
+          <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border">
+            <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">1</div>
+            <div>
+              <p className="font-medium text-sm">Create Meta App</p>
+              <p className="text-xs text-muted-foreground mt-1">Go to <a href="https://developers.facebook.com" target="_blank" className="text-blue-600 underline">developers.facebook.com</a>, log in, and click "My Apps" -> "Create App". Select "Other" -> "Business" as the type.</p>
             </div>
-          ))}
-        </div>
-        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
-          <p className="text-xs text-amber-800">
-            <AlertTriangle className="h-3 w-3 inline mr-1" />
-            <strong>Note:</strong> WhatsApp Business API requires a verified business account. For testing, use Meta test phone numbers.
-          </p>
+          </div>
+          <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border">
+            <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">2</div>
+            <div>
+              <p className="font-medium text-sm">Add WhatsApp Product</p>
+              <p className="text-xs text-muted-foreground mt-1">Scroll down to add the "WhatsApp" product to your app. Navigate to "WhatsApp" -> "API Setup" in the left menu.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border">
+            <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">3</div>
+            <div>
+              <p className="font-medium text-sm">Get Phone & Token Credentials</p>
+              <p className="text-xs text-muted-foreground mt-1">Copy the <strong>Phone Number ID</strong> and a <strong>Temporary Access Token</strong> (or generate a permanent System User token) from the API Setup page. Paste these into the WhatsApp tab in these settings.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border">
+            <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">4</div>
+            <div>
+              <p className="font-medium text-sm">Configure Webhook URL</p>
+              <p className="text-xs text-muted-foreground mt-1">In Meta, go to "WhatsApp" -> "Configuration". Click "Edit" under Webhook. Enter your app's URL followed by <code>/api/webhook/whatsapp</code> (e.g., <code>https://yourdomain.com/api/webhook/whatsapp</code>).</p>
+            </div>
+          </div>
+          <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border">
+            <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">5</div>
+            <div>
+              <p className="font-medium text-sm">Verify Webhook Token</p>
+              <p className="text-xs text-muted-foreground mt-1">In the Meta Verify Token field, enter your configured token (default is <code>drdent520105</code> or whatever you set in Settings). Click "Verify and Save".</p>
+            </div>
+          </div>
+          <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border">
+            <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">6</div>
+            <div>
+              <p className="font-medium text-sm">Subscribe to Messages</p>
+              <p className="text-xs text-muted-foreground mt-1">Below the Webhook URL in Meta, click "Manage" on Webhook fields and subscribe to the <strong>messages</strong> event so your app receives incoming chats.</p>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -584,7 +604,14 @@ CREATE TABLE IF NOT EXISTS analytics (
     widget_messages INTEGER DEFAULT 0,
     UNIQUE(workspace_id, date)
 );
-    role TEXT CHECK (role IN ('admin', 'staff')) DEFAULT 'staff',
+
+CREATE TABLE IF NOT EXISTS system_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    source TEXT NOT NULL,
+    level TEXT DEFAULT 'info',
+    message TEXT NOT NULL,
+    details JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -993,6 +1020,10 @@ ON CONFLICT (workspace_id) DO NOTHING;`
 
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
+  const [systemLogs, setSystemLogs] = useState<any[]>([])
+  const [loadingSystemLogs, setLoadingSystemLogs] = useState(false)
+  const [systemPassword, setSystemPassword] = useState("")
+  const [isSystemLogsUnlocked, setIsSystemLogsUnlocked] = useState(false)
 
   const [aiProvider, setAiProvider] = useState("openai")
   const [aiModel, setAiModel] = useState("gpt-4o")
@@ -1082,6 +1113,25 @@ ON CONFLICT (workspace_id) DO NOTHING;`
     }
     loadLogs()
   }, [checkSupabaseConnection])
+
+  // Load system logs when unlocked
+  useEffect(() => {
+    if (isSystemLogsUnlocked) {
+      const loadSystemLogs = async () => {
+        setLoadingSystemLogs(true)
+        try {
+          const logs = await getSystemLogs(50)
+          setSystemLogs(logs)
+        } catch (err) {
+          console.error(err)
+        }
+        setLoadingSystemLogs(false)
+      }
+      loadSystemLogs()
+      const interval = setInterval(loadSystemLogs, 10000) // Refresh every 10s
+      return () => clearInterval(interval)
+    }
+  }, [isSystemLogsUnlocked])
 
   // Load existing config from database
   useEffect(() => {
@@ -1512,6 +1562,10 @@ ON CONFLICT (workspace_id) DO NOTHING;`
           <TabsTrigger value="docs" className="gap-1.5 text-xs py-2">
             <FileText className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Docs</span>
+          </TabsTrigger>
+          <TabsTrigger value="system" className="gap-1.5 text-xs py-2">
+            <Terminal className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">System Logs</span>
           </TabsTrigger>
         </TabsList>
 
@@ -2498,6 +2552,132 @@ ON CONFLICT (workspace_id) DO NOTHING;`
                   )
                 })}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="system" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Terminal className="h-5 w-5" />
+                System Logs
+              </CardTitle>
+              <CardDescription>Real-time technical logs for debugging WhatsApp and AI integration</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!isSystemLogsUnlocked ? (
+                <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                  <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
+                    <Lock className="h-6 w-6" />
+                  </div>
+                  <div className="text-center space-y-1">
+                    <p className="font-medium">System Logs Locked</p>
+                    <p className="text-sm text-muted-foreground">Enter the master password to view technical system logs.</p>
+                  </div>
+                  <div className="flex w-full max-w-xs gap-2">
+                    <Input 
+                      type="password" 
+                      placeholder="Enter password" 
+                      value={systemPassword}
+                      onChange={(e) => setSystemPassword(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && systemPassword === 'drdent520105') {
+                          setIsSystemLogsUnlocked(true);
+                        }
+                      }}
+                    />
+                    <Button 
+                      onClick={() => {
+                        if (systemPassword === 'drdent520105') {
+                          setIsSystemLogsUnlocked(true);
+                        } else {
+                          toast?.({ title: "Invalid Password", variant: "error" });
+                        }
+                      }}
+                    >
+                      Unlock
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        Live Monitoring Active
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={async () => {
+                        setLoadingSystemLogs(true);
+                        try {
+                          const logs = await getSystemLogs(50);
+                          setSystemLogs(logs);
+                        } catch (err) {
+                          console.error(err);
+                        }
+                        setLoadingSystemLogs(false);
+                      }}
+                      disabled={loadingSystemLogs}
+                    >
+                      {loadingSystemLogs ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                      Refresh
+                    </Button>
+                  </div>
+
+                  {systemLogs.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">No system logs found yet. Incoming WhatsApp messages will appear here.</div>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs font-mono">
+                          <thead className="bg-muted border-b">
+                            <tr>
+                              <th className="p-2 font-medium">Timestamp</th>
+                              <th className="p-2 font-medium">Source</th>
+                              <th className="p-2 font-medium">Message</th>
+                              <th className="p-2 font-medium">Level</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {systemLogs.map((log) => (
+                              <tr key={log.id} className="border-b last:border-0 hover:bg-muted/30">
+                                <td className="p-2 whitespace-nowrap text-muted-foreground">
+                                  {new Date(log.created_at).toLocaleTimeString()}
+                                </td>
+                                <td className="p-2">
+                                  <Badge variant="outline" className="text-[10px] px-1 h-4">{log.source}</Badge>
+                                </td>
+                                <td className="p-2 max-w-md">
+                                  <div className="font-medium">{log.message}</div>
+                                  {log.details && (
+                                    <pre className="mt-1 text-[10px] text-muted-foreground overflow-x-auto max-h-32 bg-muted/50 p-1 rounded">
+                                      {JSON.stringify(log.details, null, 2)}
+                                    </pre>
+                                  )}
+                                </td>
+                                <td className="p-2">
+                                  <span className={cn(
+                                    "px-1.5 py-0.5 rounded text-[10px] font-bold uppercase",
+                                    log.level === 'error' ? "bg-red-100 text-red-700" : 
+                                    log.level === 'warn' ? "bg-amber-100 text-amber-700" : 
+                                    "bg-blue-100 text-blue-700"
+                                  )}>
+                                    {log.level}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
