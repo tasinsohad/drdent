@@ -247,14 +247,14 @@ CREATE TABLE IF NOT EXISTS widget_config (
             <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">1</div>
             <div>
               <p className="font-medium text-sm">Create Meta App</p>
-              <p className="text-xs text-muted-foreground mt-1">Go to <a href="https://developers.facebook.com" target="_blank" className="text-blue-600 underline">developers.facebook.com</a>, log in, and click "My Apps" -> "Create App". Select "Other" -> "Business" as the type.</p>
+              <p className="text-xs text-muted-foreground mt-1">Go to <a href="https://developers.facebook.com" target="_blank" className="text-blue-600 underline">developers.facebook.com</a>, log in, and click "My Apps" → "Create App". Select "Other" → "Business" as the type.</p>
             </div>
           </div>
           <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border">
             <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">2</div>
             <div>
               <p className="font-medium text-sm">Add WhatsApp Product</p>
-              <p className="text-xs text-muted-foreground mt-1">Scroll down to add the "WhatsApp" product to your app. Navigate to "WhatsApp" -> "API Setup" in the left menu.</p>
+              <p className="text-xs text-muted-foreground mt-1">Scroll down to add the "WhatsApp" product to your app. Navigate to "WhatsApp" → "API Setup" in the left menu.</p>
             </div>
           </div>
           <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border">
@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS widget_config (
             <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold">4</div>
             <div>
               <p className="font-medium text-sm">Configure Webhook URL</p>
-              <p className="text-xs text-muted-foreground mt-1">In Meta, go to "WhatsApp" -> "Configuration". Click "Edit" under Webhook. Enter your app's URL followed by <code>/api/webhook/whatsapp</code> (e.g., <code>https://yourdomain.com/api/webhook/whatsapp</code>).</p>
+              <p className="text-xs text-muted-foreground mt-1">In Meta, go to "WhatsApp" → "Configuration". Click "Edit" under Webhook. Enter your app's URL followed by <code>/api/webhook/whatsapp</code> (e.g., <code>https://yourdomain.com/api/webhook/whatsapp</code>).</p>
             </div>
           </div>
           <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border">
