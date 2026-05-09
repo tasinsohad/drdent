@@ -21,9 +21,13 @@ async function test() {
   if (aiError) console.error("❌ AI Config Error:", aiError.message)
   else console.log("📊 AI Configs:", aiConfigs)
 
-  const { data: convs, error: convError } = await supabase.from('conversations').select('*')
-  if (convError) console.error("❌ Conversations Error:", convError.message)
-  else console.log("📊 Conversations count:", convs?.length || 0)
+  const { data: messages, error: msgError } = await supabase.from('messages').select('*').order('timestamp', { ascending: false }).limit(5)
+  if (msgError) console.error("❌ Messages Error:", msgError.message)
+  else console.log("📊 Recent Messages:", messages)
+
+  const { data: logs, error: logError } = await supabase.from('system_logs').select('*').order('created_at', { ascending: false }).limit(10)
+  if (logError) console.error("❌ System Logs Error:", logError.message)
+  else console.log("📊 Recent System Logs:", logs)
 }
 
 test()

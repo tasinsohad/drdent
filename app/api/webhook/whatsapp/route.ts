@@ -57,14 +57,31 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     console.log('📥 WhatsApp WEBHOOK Received:', JSON.stringify(body, null, 2))
-    
-    // Attempt to log without blocking (don't fail if table doesn't exist)
-    supabase.from('system_logs').insert({
+
+    // 1. Get/Initialize Workspace - use ANY existing workspace, don't create new
+    let workspaceId = ''
+    const { data: workspace, error: wsError } = await supabase
+      .from('workspaces')
+      .select('id')
+      .limit(1)
+      .single()
+
+    if (wsError || !workspace) {
+      console.log('🛠️ No workspace found at all - this should not happen if migration ran')
+      workspaceId = ''
+    } else {
+      workspaceId = workspace.id
+      console.log('🏢 Using existing workspace:', workspaceId)
+    }
+
+    // Attempt to log without blocking
+    await supabase.from('system_logs').insert({
+      workspace_id: workspaceId,
       source: 'whatsapp_webhook',
       level: 'info',
       message: 'Webhook POST received',
       details: body
-    }).then().catch(() => {})
+    })
 
     const entry = body.entry?.[0]
     const changes = entry?.changes?.[0]
@@ -118,22 +135,6 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // 1. Get/Initialize Workspace - use ANY existing workspace, don't create new
-      let workspaceId = ''
-      const { data: workspace, error: wsError } = await supabase
-        .from('workspaces')
-        .select('id')
-        .limit(1)
-        .single()
-
-      if (wsError || !workspace) {
-        console.log('🛠️ No workspace found at all - this should not happen if migration ran')
-        workspaceId = ''
-      } else {
-        workspaceId = workspace.id
-        console.log('🏢 Using existing workspace:', workspaceId)
-      }
-      
       if (!workspaceId) {
         console.error('❌ No workspace available, cannot process message')
         return new NextResponse('No workspace configured', { status: 500 })
@@ -263,6 +264,13 @@ export async function POST(request: NextRequest) {
       // Only proceed if WhatsApp is enabled AND has token
       if (canSendReply) {
         console.log('✅ WhatsApp is enabled, attempting AI response...')
+        await supabase.from('system_logs').insert({
+          workspace_id: workspaceId,
+          source: 'whatsapp_webhook',
+          level: 'info',
+          message: 'Starting AI response generation',
+          details: { model: aiConfig?.model }
+        })
         
         // Get AI config
         const { config: aiConfig, pastMessages } = await getAIContext(workspaceId, conversationId)
@@ -324,13 +332,13 @@ export async function POST(request: NextRequest) {
             }
           } catch (aiErr: any) {
             console.error('❌ AI generation error:', aiErr.message)
-            supabase.from('system_logs').insert({
+            await supabase.from('system_logs').insert({
               workspace_id: workspaceId,
               source: 'whatsapp_webhook',
               level: 'error',
               message: 'AI generation error',
               details: { error: aiErr.message }
-            }).then().catch(() => {})
+            })
             aiErrorOccurred = true
           }
         }
@@ -375,23 +383,23 @@ export async function POST(request: NextRequest) {
 
         if (waRes.ok) {
           console.log('✅ Reply sent to WhatsApp successfully!')
-          supabase.from('system_logs').insert({
+          await supabase.from('system_logs').insert({
             workspace_id: workspaceId,
             source: 'whatsapp_webhook',
             level: 'info',
             message: 'Reply sent successfully',
             details: { reply }
-          }).then().catch(() => {})
+          })
         } else {
           const waData = await waRes.json()
           console.error('❌ Meta API error FULL:', JSON.stringify(waData, null, 2))
-          supabase.from('system_logs').insert({
+          await supabase.from('system_logs').insert({
             workspace_id: workspaceId,
             source: 'whatsapp_webhook',
             level: 'error',
             message: 'Meta API Send Error',
             details: waData
-          }).then().catch(() => {})
+          })
           
           if (waData.error?.message?.includes('access token')) {
             console.error('🛑 ACTION REQUIRED: The WhatsApp Access Token appears to be invalid or expired. Please update it in Settings.')
